@@ -170,7 +170,7 @@ def generate_aadress_komponent(
     result_df = df.rename(columns={v: k for k, v in output_columns.items() if v}).copy()
 
     # Assign AKpID (unique ID)
-    result_df["AKpID"] = result_df.index
+    result_df["AKpID"] = result_df.index + 1
 
     # Ensure missing columns exist before selecting them
     missing_columns = [

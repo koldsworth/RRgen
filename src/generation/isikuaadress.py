@@ -22,19 +22,19 @@ def generate_isikuaadress(
     death-date truncation, and a parent-child timeline copy.
 
     Logic:
-      1) Optionally set random seed.
-      2) For each family, derive earliest arrival (family_arrival) and latest departure (family_departure).
-      3) For adults, generate address periods (min..max_count). The last period is open (KuniKpv=None => KEHTIV).
+      Optionally set random seed.
+      1) For each family, derive earliest arrival (family_arrival) and latest departure (family_departure).
+      2) For adults, generate address periods (min..max_count). The last period is open (KuniKpv=None => KEHTIV).
          All others have KuniKpv != None => KEHTETU. Link them with IAdrIDJargmine, DokIDLopuAlus.
          Then apply death-date truncation via adjust_timeline_for_death().
-      4) For children, simply copy a chosen parent's timeline. Also apply death-date truncation.
-      5) Apply family_arrival/family_departure logic:
+      3) For children, simply copy a chosen parent's timeline. Also apply death-date truncation.
+      4) Apply family_arrival/family_departure logic:
          - shift earliest period if it starts before family_arrival
          - cut the last period if it extends beyond family_departure
-      6) Remove invalid periods where start_>end_, then re-link remaining. 
+      5) Remove invalid periods where start_>end_, then re-link remaining. 
          This ensures no more references to nonexistent periods. 
-      7) Assign final LoodiKpv, KustutatiKpv, MuudetiKpv (these do not alter start_/end_).
-      8) Collect all records and return as a single DataFrame.
+      6) Assign final LoodiKpv, KustutatiKpv, MuudetiKpv (these do not alter start_/end_).
+      Collect all records and return as a single DataFrame.
 
     :param df_relationships: DataFrame of people, grouped by 'Perekonna ID'. 
                             It must contain at least:
@@ -74,7 +74,9 @@ def generate_isikuaadress(
     families = df_relationships.groupby("Perekonna ID")
 
     for family_id, group in families:
+        # -------------------------------------------------------------------
         # 1) Derive family-level arrival & departure
+        # -------------------------------------------------------------------
         arrival_dates = [d for d in group["IsSaabusEesti"] if pd.notnull(d)]
         departure_dates = [d for d in group["IsLahkusEestist"] if pd.notnull(d)]
         family_arrival = min(arrival_dates) if arrival_dates else None
@@ -86,7 +88,9 @@ def generate_isikuaadress(
 
         person_history_map = {}
 
+        # -------------------------------------------------------------------
         # 2) BUILD TIMELINE FOR EACH ADULT
+        # -------------------------------------------------------------------
         for _, adult_row in adults.iterrows():
             pid = adult_row["IsID"]
 
@@ -171,7 +175,9 @@ def generate_isikuaadress(
 
             person_history_map[pid] = timeline
 
+        # -------------------------------------------------------------------
         # 3) BUILD TIMELINE FOR EACH CHILD (COPY FROM PARENT)
+        # -------------------------------------------------------------------
         for _, child_row in children.iterrows():
             child_id = child_row["IsID"]
             parent_ids = child_row["Vanem(ad)"]
@@ -234,7 +240,9 @@ def generate_isikuaadress(
             child_timeline = adjust_timeline_for_death(df_kodifikaator, child_timeline, death_date_child)
             person_history_map[child_id] = child_timeline
 
+        # -------------------------------------------------------------------
         # 4) APPLY FAMILY ARRIVAL/DEPARTURE => modifies start_/end_
+        # -------------------------------------------------------------------
         for pid in group["IsID"]:
             tml = person_history_map.get(pid, [])
             if not tml:
@@ -252,7 +260,9 @@ def generate_isikuaadress(
                     last_p["KdIDAadressiStaatus"] = get_kdid_for_name(df_kodifikaator, "KEHTETU")
                     last_p["KdIDAadressiLiik"]    = get_kdid_for_name(df_kodifikaator, "ENDINE ELUKOHT")
 
+        # -------------------------------------------------------------------
         # 5) REMOVE INVALID (start_>end_) + RELINK
+        # -------------------------------------------------------------------
         def remove_invalid_and_relink(timeline):
             fixed = []
             for rec in timeline:
@@ -280,7 +290,9 @@ def generate_isikuaadress(
             tml = remove_invalid_and_relink(tml)
             person_history_map[pid] = tml
 
+        # -----------------------------------------------------------------------
         # 6) SET LOODIKPV, MUUDETIPV, KUSTUTATIKPV (no more changes to st_/end_)
+        # -----------------------------------------------------------------------
         def assign_dates_final(timeline):
             for row_ in timeline:
                 st_ = row_["IAdrKehtibAlatesKpv"]
@@ -328,4 +340,29 @@ def generate_isikuaadress(
             all_records.extend(person_history_map.get(pid, []))
 
     df_history = pd.DataFrame(all_records)
+
+    id_cols     = ["IAdrID", "DokIDAlus", "IAdrIDJargmine", "DokIDLopuAlus"]
+    pointer_cols = ["DokIDAlus", "IAdrIDJargmine", "DokIDLopuAlus"]
+
+    # --- 1. make sure the raw data are integers, not floats ---------------------
+    for col in id_cols:
+        if col in df_history.columns:
+            df_history[col] = df_history[col].astype("Int64")        # nullable int
+
+    # --- 2. build the map (after they’re integers!) ----------------------------
+    df_history = df_history.sort_values("IAdrID").reset_index(drop=True)
+    id_map = {old_id: new_id for new_id, old_id in enumerate(df_history["IAdrID"], start=1)}
+
+    # primary key
+    df_history["IAdrID"] = df_history["IAdrID"].map(id_map).astype("Int64")
+
+    # every column that points at IAdrID (single pass each)
+    for col in pointer_cols:
+        if col in df_history.columns:
+            df_history[col] = (
+                df_history[col]
+                .map(lambda x: id_map.get(int(x)) if pd.notna(x) else x)
+                .astype("Int64")
+            )
+
     return df_history

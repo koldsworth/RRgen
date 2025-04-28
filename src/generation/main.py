@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from functools import lru_cache
 from datetime import datetime
 from .aadress import generate_aadress, generate_aadress_komponent
 from .asutus import generate_asutus, build_isik_asutus
@@ -46,7 +47,7 @@ def generate_tables(data, num_records=10000, seed=42):
 
     log_progress("Generating temporary relationships")
     gen_temp_rel = generate_temp_relatsionships(
-        n_people=num_records - 1,
+        n_people=num_records,
         seed=seed,
         df_possible_aadresses=gen_df_adr,
         df_kd=data["kodifikaator"]
@@ -87,6 +88,12 @@ def generate_tables(data, num_records=10000, seed=42):
             'doc_id_col': 'DokIDAlus',
             'start_date_col': 'IAdrKehtibAlatesKpv',
             'end_date_col': 'IAdrKehtibKuniKpv',
+            'loodi_date_col': 'LoodiKpv'
+        }),
+        ("KODAKONDSUSE TÜHISTAMINE", gen_df_kk, {
+            'is_id_col': 'IsID',
+            'doc_id_col': 'DokIDLopuAlus',
+            'start_date_col': 'KodKehtibAlates',
             'loodi_date_col': 'LoodiKpv'
         }),
         ("KODAKONDSUS", gen_df_kk, {
@@ -154,49 +161,72 @@ def save_to_csv(dataframes):
 
     log_progress("Data generation complete. CSV files are in the 'output' folder.")
 
-def inject_ias_metadata_to_csv_folder(df_isik_asutus: pd.DataFrame):
-    def get_valid_ias_ids(ts):
-        if pd.isnull(ts):
-            return pd.DataFrame()
-        mask = (df_isik_asutus["IAsAlgusKpv"] <= ts) & (
-            df_isik_asutus["IAsKinniKpv"].isna() | (df_isik_asutus["IAsKinniKpv"] > ts)
+def inject_ias_metadata_to_csv_folder(df_isik_asutus: pd.DataFrame) -> None:
+    """
+    Populate IAsIDLooja, IAsIDMuutja and AsID columns in every CSV found in
+    OUTPUT_FOLDER.  Keeps the original pick one random matching row logic,
+    but does it only once per distinct timestamp, not once per table row.
+    """
+
+    # Pre-process the lookup table only once
+    df_isik_asutus = df_isik_asutus.copy()
+    date_col =  "IAsKinniKpv"
+    df_isik_asutus[date_col] = df_isik_asutus[date_col].apply(
+        pd.to_datetime, errors="coerce", format = "%Y.%m.%d %H:%M:%S"
+    )
+
+    @lru_cache(maxsize=None)   # unlimited cache – every distinct ts cached once
+    def choose_random_id(ts: pd.Timestamp):
+        """Return a random (IAsID, AsID) that was active at *ts*."""
+        if pd.isna(ts):
+            return (None, None)
+
+        mask = (
+            (df_isik_asutus["IAsKinniKpv"] <= ts)
         )
-        return df_isik_asutus.loc[mask, ["IAsID", "AsID"]]
+        if not mask.any():
+            return (None, None)
 
+        chosen = df_isik_asutus.loc[mask].sample(1).iloc[0]
+        return chosen["IAsID"], chosen["AsID"]
+
+    # Go through the CSVs
     for filename in os.listdir(OUTPUT_FOLDER):
-        if filename.endswith(".csv"):
-            filepath = os.path.join(OUTPUT_FOLDER, filename)
-            df = pd.read_csv(filepath)
+        if not filename.endswith(".csv"):
+            continue
 
-            # Does the file contain columns
-            relevant_dates = [col for col in ["LoodiKpv", "MuudetiKpv", "KustutatiKpv"] if col in df.columns]
-            if not relevant_dates:
-                continue
+        path = os.path.join(OUTPUT_FOLDER, filename)
+        df = pd.read_csv(path, low_memory=False)
 
-            # Parse through date cols
-            for col in relevant_dates:
-                df[col] = pd.to_datetime(df[col], format="%d.%m.%Y", errors="coerce")
+        # Relevant date columns present in this file
+        ts_cols = [c for c in ["LoodiKpv", "MuudetiKpv", "KustutatiKpv"] if c in df]
+        if not ts_cols:       # nothing to do
+            continue
 
-            # Check if cols exist
-            for col in ["IAsIDLooja", "IAsIDMuutja", "AsID"]:
-                if col not in df.columns:
-                    df[col] = None
+        df[ts_cols] = df[ts_cols].apply(pd.to_datetime, errors="coerce")
 
-            # Assign "IAsID" and "AsID"
-            for idx, row in df.iterrows():
-                for field, time_col in [("IAsIDLooja", "LoodiKpv"), ("IAsIDMuutja", "MuudetiKpv")]:
-                    if time_col in df.columns:
-                        ts = row[time_col]
-                        valid = get_valid_ias_ids(ts)
-                        if not valid.empty:
-                            chosen = valid.sample(1).iloc[0]
-                            df.at[idx, field] = chosen["IAsID"]
-                            if pd.isnull(df.at[idx, "AsID"]):
-                                df.at[idx, "AsID"] = chosen["AsID"]
+        # Ensure the targets exist
+        for c in ["IAsIDLooja", "IAsIDMuutja", "AsID"]:
+            if c not in df:
+                df[c] = pd.NA
 
-            df.to_csv(filepath, index=False)
-            print(f"Updated: {filename}")
+        # Vectorised fill
+        if "LoodiKpv" in df:
+            ids = df["LoodiKpv"].map(choose_random_id)
+            df[["IAsIDLooja_tmp", "AsID_tmp"]] = pd.DataFrame(ids.tolist(), index=df.index)
+            df["IAsIDLooja"].fillna(df["IAsIDLooja_tmp"], inplace=True)
+            df["AsID"].fillna(df["AsID_tmp"], inplace=True)
+            df.drop(columns=["IAsIDLooja_tmp", "AsID_tmp"], inplace=True)
 
+        if "MuudetiKpv" in df:
+            ids = df["MuudetiKpv"].map(choose_random_id)
+            df[["IAsIDMuutja_tmp", "AsID_tmp"]] = pd.DataFrame(ids.tolist(), index=df.index)
+            df["IAsIDMuutja"].fillna(df["IAsIDMuutja_tmp"], inplace=True)
+            df["AsID"].fillna(df["AsID_tmp"], inplace=True)
+            df.drop(columns=["IAsIDMuutja_tmp", "AsID_tmp"], inplace=True)
+
+        df.to_csv(path, index=False)
+        print(f"Updated: {filename}")
 
 def main(num_records=10000, output_folder="output", seed=42):
     global OUTPUT_FOLDER
@@ -207,6 +237,7 @@ def main(num_records=10000, output_folder="output", seed=42):
     generated_data = generate_tables(data, num_records=num_records, seed=seed)
     save_to_csv(generated_data)
 
+    log_progress("Starting metadata injection")
     df_ias = generated_data["04_isik_asutus.csv"]
     inject_ias_metadata_to_csv_folder(df_ias)
 

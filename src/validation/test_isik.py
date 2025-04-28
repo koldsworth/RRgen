@@ -1,149 +1,127 @@
-import pytest
-import os
+"""Tests for 06_isik.csv – person master table.
+
+Only the business‑specific rules live here; all generic validation
+helpers are imported from 'validation.helpers'.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
 import pandas as pd
+import pytest
+
+from src.validation.helpers import (
+    assert_fk,
+    assert_unique_not_null,
+    assert_temporal_order,
+)
 from src.generation.utils import get_kdid_for_name
 
-#######################################################################
-# 1) Pytest fixtures that read CSV files from the output folder
-#######################################################################
+# ---------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------
 
-@pytest.fixture
-def kodifikaator_df():
-    """
-    Reads 'data/kodifikaator.csv' as the code table.
-    We assume it has columns like:
-      'KdID', 'KdLyhikeNimi', 'KdKodifikaatoriKood', 'KdElemendiKood', etc.
-    """
-    path = os.path.join("data", "kodifikaator.csv")
-    df = pd.read_csv(path, encoding='ISO-8859-1')  # if needed, use encoding='latin-1'
-    return df
+_OUTPUT_FILE = Path(__file__).resolve().parents[2] / "output" / "06_isik.csv"
+_DATE_COLS = [
+    "IsSurmaaeg",
+    "LoodiKpv",
+    "MuudetiKpv",
+    "KustutatiKpv",
+    "isSynniaeg",
+]
+_FK_COLS = [
+    "KdIDIsikuStaatus",
+    "KdIDKirjeStaatus",
+    "KdIDHaridus",
+    "KdIDEmakeel",
+    "KdIDRahvus",
+    "KdIDKodakondsus",
+    "KdIDPerekonnaseis",
+    "KdIDPohjus",
+]
 
-@pytest.fixture
-def isik_df():
-    """
-    Reads 'output/06_isik.csv', which should be produced by generate_isik.
-    We expect columns like:
-      - IsID, IsIsikukood, IsEesnimi, IsPerenimi, IsSurmaaeg,
-        KdIDIsikuStaatus, KdIDKirjeStaatus, LoodiKpv, MuudetiKpv,
-        KustutatiKpv, etc.
-    """
-    path = os.path.join("output", "06_isik.csv")
-    df = pd.read_csv(
-        path,
-        parse_dates=["IsSurmaaeg", "LoodiKpv", "MuudetiKpv", "KustutatiKpv", "isSynniaeg"],
-        encoding='ISO-8859-1'
-    )
-    return df
+# ---------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------
 
-#######################################################################
-# 2) Tests for isik.csv
-#######################################################################
+@pytest.fixture(scope="module")
+def isik_df() -> pd.DataFrame:
+    """Load 06_isik.csv once for the module."""
+    return pd.read_csv(_OUTPUT_FILE, parse_dates=_DATE_COLS, low_memory=False)
 
-def test_isik_fk_kodifikaator(isik_df, kodifikaator_df):
-    """
-    Checks that KdID columns (e.g., KdIDIsikuStaatus, KdIDKirjeStaatus, etc.)
-    find valid matches in the kodifikaator KdID set (if they are filled).
-    """
-    possible_kdid_cols = [
-        "KdIDIsikuStaatus","KdIDKirjeStaatus","KdIDHaridus","KdIDEmakeel",
-        "KdIDRahvus","KdIDKodakondsus","KdIDPerekonnaseis","KdIDPohjus"
-    ]
-    valid_kdids = set(kodifikaator_df["KdID"].dropna().unique())
+# ---------------------------------------------------------------------
+# Generic constraints (PK, FK, dates)
+# ---------------------------------------------------------------------
 
-    for col in possible_kdid_cols:
+def test_pk_isik(isik_df: pd.DataFrame) -> None:
+    """Primary key IsID must be unique and NOT NULL."""
+    assert_unique_not_null(isik_df, "IsID", label="IsID (PK)")
+
+
+def test_kodifikaator_fks(isik_df: pd.DataFrame, kodifikaator_df: pd.DataFrame) -> None:
+    """All KdID‑typed columns reference valid codes in kodifikaator."""
+    for col in _FK_COLS:
         if col in isik_df.columns:
-            used_vals = set(isik_df[col].dropna().unique())
-            invalid = [v for v in used_vals if v not in valid_kdids]
-            assert not invalid, (
-                f"Tulp '{col}' sisaldab väärtusi, mida kodifikaator ei tunne: {invalid}"
+            assert_fk(
+                isik_df,
+                col,
+                kodifikaator_df,
+                msg=f"{col} contains unknown KdIDs",
             )
 
-def test_isik_surmaaeg_staatuse_kooskola(isik_df, kodifikaator_df):
-    """
-    The generate_isik code states that if Surmaaeg is present:
-       => KdIDIsikuStaatus = 'SURNUD', KdIDKirjeStaatus = 'ARHIIVIS'.
-    If Surmaaeg is None:
-       => we expect 'ELUS' and 'REGISTRIS'.
-    This test verifies that logic.
-    """
-    kd_surnud = get_kdid_for_name(kodifikaator_df, "SURNUD")
-    kd_elus = get_kdid_for_name(kodifikaator_df, "ELUS")
-    kd_arhiivis = get_kdid_for_name(kodifikaator_df, "ARHIIVIS")
-    kd_registris = get_kdid_for_name(kodifikaator_df, "REGISTRIS")
 
-    if not all([kd_surnud, kd_elus, kd_arhiivis, kd_registris]):
-        pytest.skip("Puuduvad kõik vajalikud koodid (SURNUD, ELUS, ARHIIVIS, REGISTRIS) kodifikaatoris.")
+def test_temporal_coherence(isik_df: pd.DataFrame) -> None:
+    """If MuudetiKpv exists it must not precede LoodiKpv."""
+    assert_temporal_order(isik_df, "LoodiKpv", "MuudetiKpv")
 
-    # 1) Deceased persons (Surnud)
-    surnud = isik_df[isik_df["IsSurmaaeg"].notnull()]
-    # They must have KdIDIsikuStaatus= SURNUD, KdIDKirjeStaatus= ARHIIVIS
-    bad_surnud = surnud[
-        (surnud["KdIDIsikuStaatus"] != kd_surnud) |
-        (surnud["KdIDKirjeStaatus"] != kd_arhiivis)
-    ]
-    assert bad_surnud.empty, (
-        f"Isikud surmaaeg != null, kuid staatus ei ole SURNUD/ARHIIVIS:\n{bad_surnud}"
-    )
+# ---------------------------------------------------------------------
+# Business‑specific rules
+# ---------------------------------------------------------------------
 
-    # 2) Living persons (Elus)
-    elus = isik_df[isik_df["IsSurmaaeg"].isnull()]
-    # We expect KdIDIsikuStaatus= ELUS, KdIDKirjeStaatus= REGISTRIS
-    bad_elus = elus[
-        (elus["KdIDIsikuStaatus"] != kd_elus) |
-        (elus["KdIDKirjeStaatus"] != kd_registris)
-    ]
-    assert bad_elus.empty, (
-        f"Isikud surmaaeg = null, kuid staatus ei ole ELUS/REGISTRIS:\n{bad_elus}"
-    )
+def test_surmaaeg_vs_status(isik_df: pd.DataFrame, kodifikaator_df: pd.DataFrame) -> None:
+    """Status fields follow the SURNUD/ARHIIVIS vs ELUS/REGISTRIS rule."""
+    kd = lambda name: get_kdid_for_name(kodifikaator_df, name)
 
-def test_isik_isikukood(isik_df):
-    """
-    Checks that each row has 'IsIsikukood' filled (generated by generate_isik),
-    and optionally verifies that it consists of only digits (a simplified assumption).
-    """
-    # 1) No empty code values
-    null_codes = isik_df[isik_df["IsIsikukood"].isnull()]
-    assert null_codes.empty, (
-        f"Leidsime isikuid, kel IsIsikukood puudub:\n{null_codes}"
-    )
+    kd_surnud = kd("SURNUD")
+    kd_elus = kd("ELUS")
+    kd_arhiivis = kd("ARHIIVIS")
+    kd_registris = kd("REGISTRIS")
 
-    # 2) Simple regex check (e.g., 11..13 numeric characters).
-    import re
-    pattern = re.compile(r'^[0-9]{11,13}$')
-    invalid_format = []
-    for idx, val in isik_df["IsIsikukood"].items():
-        if not pattern.match(str(val)):
-            invalid_format.append((idx, val))
-    assert not invalid_format, (
-        f"Leidsime isikukoodi, mis ei vasta eeldatud numbrilistele {pattern}:\n{invalid_format}"
-    )
+    if None in (kd_surnud, kd_elus, kd_arhiivis, kd_registris):
+        pytest.skip("Required status codes missing in kodifikaator.")
 
-def test_isik_date_ranges(isik_df):
-    """
-    The generate_isik function sets LoodiKpv = (synniaeg if available, else now),
-    MuudetiKpv = random_date(...). 
-    We verify that MuudetiKpv >= LoodiKpv. 
-    KustutatiKpv is presumably None, so no checks there.
-    """
-    invalid = isik_df[
-        isik_df["MuudetiKpv"].notnull() &
-        (isik_df["MuudetiKpv"] < isik_df["LoodiKpv"])
-    ]
-    assert invalid.empty, (
-        f"Leidsime ridu, kus MuudetiKpv < LoodiKpv:\n{invalid}"
-    )
+    deceased = isik_df[isik_df["IsSurmaaeg"].notna()]
+    living = isik_df[isik_df["IsSurmaaeg"].isna()]
 
-def test_isik_foreign_kov(isik_df):
-    """
-    Example: if 'IsSaabusEesti' is True (or a date), we assume AKpID != null.
-    Your code shows: 'IsSaabusEesti' = date, but it's optional.
-    We define the logic: if IsSaabusEesti != null, we assume AKpID != null.
-    """
-    if "IsSaabusEesti" not in isik_df.columns or "AKpID" not in isik_df.columns:
-        pytest.skip("Puuduvad veerud IsSaabusEesti v AKpID, ei saa reeglit testida.")
+    assert (
+        (deceased["KdIDIsikuStaatus"] == kd_surnud)
+    ).all() and (
+        (deceased["KdIDKirjeStaatus"] == kd_arhiivis).all()
+    ), "Deceased persons must be SURNUD/ARHIIVIS"
 
-    arrived = isik_df[isik_df["IsSaabusEesti"].notnull() & isik_df["AKpID"].isnull()]
-    assert arrived.empty, (
-        "Isikul on IsSaabusEesti täidetud, kuid AKpID on tühi. "
-        f"Ridu:\n{arrived}"
-    )
+    assert (
+        (living["KdIDIsikuStaatus"] == kd_elus).all()
+    ) and (
+        (living["KdIDKirjeStaatus"] == kd_registris).all()
+    ), "Living persons must be ELUS/REGISTRIS"
+
+
+def test_isikukood_format(isik_df: pd.DataFrame) -> None:
+    """IsIsikukood is required and must consist of 11–13 digits."""
+    pattern = re.compile(r"^[0-9]{11,13}$")
+
+    assert isik_df["IsIsikukood"].notna().all(), "IsIsikukood NULL values found"
+
+    bad = isik_df.loc[~isik_df["IsIsikukood"].astype(str).str.match(pattern)]
+    assert bad.empty, f"Invalid IsIsikukood format: {bad[['IsID','IsIsikukood']]}"
+
+
+def test_kov_fk_when_arrival(isik_df: pd.DataFrame) -> None:
+    """If IsSaabusEesti is filled then AKpID must also be present."""
+    if not {"IsSaabusEesti", "AKpID"}.issubset(isik_df.columns):
+        pytest.skip("IsSaabusEesti/AKpID columns not found – rule not applicable.")
+
+    problem = isik_df[isik_df["IsSaabusEesti"].notna() & isik_df["AKpID"].isna()]
+    assert problem.empty, "IsSaabusEesti filled but AKpID missing for some rows"

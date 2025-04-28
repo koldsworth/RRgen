@@ -25,7 +25,7 @@ def add_invalid_citizenship(
 ) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     """
     Creates an invalid citizenship record for selected persons by:
-      - Generating a new citizenship record in df_citizenship with an expired validity period,
+      - Generating a new citizenship record in df_citizenship,
       - Generating a new document in df_documents with additional data fields and the specified doc_type,
       - And adding a new row to the bridging table (df_person_document) linking the person and the document.
       
@@ -36,7 +36,7 @@ def add_invalid_citizenship(
     :param df_person_document: DataFrame for the person–document bridging table.
     :param df_person: DataFrame for person records.
     :param df_codebook: DataFrame for codebook lookup.
-    :param doc_type: Document type (e.g., "MÄÄRATLEMATA KODAKONDSUS").
+    :param doc_type: Document type (e.g., "MÄÄRATLEMATA").
     :param person_count: Number of persons to randomly select.
     :param seed: Fixed seed for reproducibility.
     :return: Tuple of updated (df_citizenship, df_documents, df_person_document).
@@ -77,7 +77,7 @@ def add_invalid_citizenship(
             "DokSeeria": f"S-{random.randint(100, 999)}",
             "DokValjaantudKpv": random_date(earliest_date, now),
             "DokKehtivKuniKpv": None,
-            "DokKehtetuAlatesKpv": random_date(now - timedelta(days=60), now - timedelta(days=30)),
+            "DokKehtetuAlatesKpv": None,
             "AsIDValjaandjaAsutus": random.randint(1, 50),
             "KaIDKanne": None,
             "IAsIDLooja": None,
@@ -112,7 +112,7 @@ def add_invalid_citizenship(
             "KdIDRiik": kd_id_country_EE,
             "KodKehtibAlates": valid_from,
             "KodKehtibKuni": None,
-            "DokIDAlguseAlus": doc_id_counter + 1,
+            "DokIDAlguseAlus": doc_id_counter,
             "DokIDLopuAlus": None,
             "KdIDStaatus": kd_id_valid,
             "IAsIDLooja": None,
@@ -163,40 +163,3 @@ def add_invalid_citizenship(
         df_person_document = pd.concat([df_person_document, new_person_doc_df], ignore_index=True)
     
     return df_citizenship, df_documents, df_person_document
-
-if __name__ == "__main__":
-    input_files = {
-        "df_citizenship": "output/07_kodakondsus.csv",
-        "df_documents": "output/09_dokument.csv",
-        "df_person_document": "output/08_isikudokument.csv",
-        "df_person": "output/06_isik.csv",
-        "df_codebook": "data/kodifikaator.csv"
-    }
-    
-    dataframes = {
-        name: pd.read_csv(path, delimiter=",", encoding="ISO-8859-1", low_memory=False)
-        for name, path in input_files.items()
-    }
-    
-    df_citizenship = dataframes["df_citizenship"]
-    df_documents = dataframes["df_documents"]
-    df_person_document = dataframes["df_person_document"]
-    df_person = dataframes["df_person"]
-    df_codebook = dataframes["df_codebook"]
-    
-    df_citizenship, df_documents, df_person_document = add_invalid_citizenship(
-        df_citizenship=df_citizenship,
-        df_documents=df_documents,
-        df_person_document=df_person_document,
-        df_person=df_person,
-        df_codebook=df_codebook,
-        doc_type="MÄÄRATLEMATA KODAKONDSUS",
-        person_count=5,
-        seed=42
-    )
-    
-    df_citizenship.to_csv("output/07_kodakondsus.csv", sep=",", index=False)
-    df_documents.to_csv("output/09_dokument.csv", sep=",", index=False)
-    df_person_document.to_csv("output/08_isikudokument.csv", sep=",", index=False)
-    
-    print("New invalid citizenship records added to kodakondsus, dokumendid, and isikudokument tables.")

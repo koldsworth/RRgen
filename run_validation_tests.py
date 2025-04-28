@@ -29,6 +29,3 @@ if __name__ == "__main__":
 
     result = subprocess.run(["pytest", test_path, f"--capture={args.capture}"])
     sys.exit(result.returncode)
-
-# python run_tests.py
-# python run_tests.py --path src/validation/test_rules.py

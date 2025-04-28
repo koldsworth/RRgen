@@ -9,6 +9,7 @@ def get_kdid_for_name(df_kod, short_name: str):
 
 def shift_valid_residences_of_immigrants_to_future(
     df_isik: pd.DataFrame,
+    df_isikudokument: pd.DataFrame,
     df_isikuaadress: pd.DataFrame,
     df_dokumendid: pd.DataFrame,
     df_kodifikaator: pd.DataFrame,
@@ -45,6 +46,12 @@ def shift_valid_residences_of_immigrants_to_future(
     arrived_mask = df_isik["IsSaabusEesti"].notnull()
     arrived_persons = df_isik.loc[arrived_mask].copy()
 
+    if "IsID" not in df_dokumendid.columns:
+        # bring IsID back from the bridge table
+        df_dokumendid = df_dokumendid.merge(
+            df_isikudokument[["DokID", "IsID"]], on="DokID", how="left"
+        )
+
     for _, person in arrived_persons.iterrows():
         is_id = person["IsID"]
 
@@ -64,40 +71,3 @@ def shift_valid_residences_of_immigrants_to_future(
         df_dokumendid.loc[mask_dok, "DokKehtibAlatesKpv"] = future_date
 
     return df_isik, df_isikuaadress, df_dokumendid
-
-if __name__ == "__main__":
-    input_files = {
-        "df_isikuaadress": "output/05_isikuaadress.csv",
-        "df_dokumendid": "output/09_dokument.csv",
-        "df_isikudokument": "output/08_isikudokument.csv",
-        "df_isik": "output/06_isik.csv",
-        "df_kodifikaator": "data/kodifikaator.csv",
-        "df_aadress": "output/01_aadress.csv"
-    }
-
-    dataframes = {
-        name: pd.read_csv(path, delimiter=",", encoding='ISO-8859-1')
-        for name, path in input_files.items()
-    }
-
-    df_isikuaadress = dataframes["df_isikuaadress"]
-    df_dokumendid = dataframes["df_dokumendid"]
-    df_isikudokument = dataframes["df_isikudokument"]
-    df_isik = dataframes["df_isik"]
-    df_kodifikaator = dataframes["df_kodifikaator"]
-
-    df_isik, df_isikuaadress, df_dokumendid = shift_valid_residences_of_immigrants_to_future(
-        df_isik=df_isik,
-        df_isikuaadress=df_isikuaadress,
-        df_dokumendid=df_dokumendid,
-        df_kodifikaator=df_kodifikaator,
-        future_days=730,  # 2 years into the future
-        dok_liik_nimi="ELUKOHATEADE",
-        seed=42
-    )
-
-    df_isik.to_csv("output/06_isik.csv", sep=",", index=False)
-    df_isikuaadress.to_csv("output/05_isikuaadress.csv", sep=",", index=False)
-    df_dokumendid.to_csv("output/09_dokument.csv", sep=",", index=False)
-
-    print("Future dates applied to relevant persons' residence entries and documents.")

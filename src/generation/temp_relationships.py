@@ -186,25 +186,33 @@ def generate_temp_relatsionships(
     # -------------------------------------------------------------------
     # 8) Assign birthdates & deathdates for children
     # -------------------------------------------------------------------
+    min_age_days = int(min_age_for_parenthood * 365.25)          # ≈ 18 y
+
     for child in children:
-        parents = child["Vanem(ad)"]
-        if parents:
-            # pick the first parent's birth date
-            par_id = parents[0]
-            parent_obj = next((x for x in data_list if x["IsID"] == par_id), None)
-            if parent_obj and parent_obj["Sünniaeg"] is not None:
-                earliest_child_bd = parent_obj["Sünniaeg"] + timedelta(days=365 * min_age_for_parenthood)
-                if earliest_child_bd > now:
-                    earliest_child_bd = now - timedelta(days=365)
-                child["Sünniaeg"] = random_date(min(earliest_child_bd, now - timedelta(days=365)), max(earliest_child_bd, now - timedelta(days=365)))
-            else:
-                # random child age 0..17
-                child["Sünniaeg"] = now - timedelta(days=365 * random.randint(1, 17))
+        parents = child["Vanem(ad)"] or []
+        parents_bd = [
+            p["Sünniaeg"]
+            for p in data_list
+            if p["IsID"] in parents and p["Sünniaeg"] is not None
+        ]
+
+        if parents_bd:
+            # Child must be ≥ 18 y younger than *each* parent
+            youngest_allowed_bd = max(bd + timedelta(days=min_age_days) for bd in parents_bd)
+
+            # we still want the kid to be ≤ 1 y old today
+            latest_allowed_bd = now - timedelta(days=365)
+
+            # if parents are too young, clamp both ends to the same date
+            if youngest_allowed_bd > latest_allowed_bd:
+                latest_allowed_bd = youngest_allowed_bd
+
+            child["Sünniaeg"] = random_date(youngest_allowed_bd, latest_allowed_bd)
         else:
-            # no parents => random child age 0..17
+            # no or unknown parents ⇒ random 0-17-year-old
             child["Sünniaeg"] = now - timedelta(days=365 * random.randint(1, 17))
 
-        # children have half the death probability
+        # optional death date (half the adult probability)
         if random.random() < (death_probability / 2.0):
             child["Surmaaeg"] = random_date(child["Sünniaeg"], now)
 
@@ -384,14 +392,7 @@ def generate_temp_relatsionships(
     random.shuffle(adult_indexes)
 
     # Get asutus IDs
-    if df_possible_aadresses is not None and "AsID" in df_possible_aadresses.columns:
-        asutus_ids = df_possible_aadresses["AsID"].dropna().unique().tolist()
-    else:
-        # fallback to 1..50 if unknown
-        asutus_ids = list(range(1, 51))
-
-    if not asutus_ids:
-        asutus_ids = list(range(1, 6))  # minimum fallback
+    asutus_ids = list(range(1, 51))
 
     # Assign AsID to all adults with 10% probability
     for idx in adult_indexes:

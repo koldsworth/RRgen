@@ -230,15 +230,22 @@ def generate_asutus(
     return pd.DataFrame(data)
 
 def build_isik_asutus(df, df_kodifikaator):
+    """
+    Build the 'IsikAsutus' (person-institution) DataFrame.
+
+    :param df: A DataFrame of people from `generate_temp_relatsionships`,
+    :param df_kodifikaator: A DataFrame containing kodifikaator
+    :return: A DataFrame for the IsikAsutus
+    """
     records = []
     ias_id_counter = 1
     for idx, row in df.iterrows():
         as_id = row["AsID"]
-        # Kontrollime, et as_id ei oleks None
+        # Check that as_id is not  None
         if pd.notnull(as_id):
             is_id = row["IsID"]
 
-            # Loome 1 IsikAsutus kande
+            # Create 1 isik_asutus row
             record_ia = generate_isik_asutus(
                 ias_id=ias_id_counter,
                 is_id=is_id,

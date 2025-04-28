@@ -5,7 +5,7 @@ from faker import Faker
 from src.generation.utils import random_date, get_kdid_for_name, generate_isikukood
 
 
-faker = Faker('et_EE')  # For Estonian-style names. Adjust locale as needed.
+faker = Faker('et_EE')  # For Estonian-style names.
 
 def generate_isik(
     temp_relationships: pd.DataFrame,
@@ -19,8 +19,8 @@ def generate_isik(
     'kodifikaator'. The result is a DataFrame where each row represents one person.
 
     Logic:
-      1) If seed is provided, set the random seed for reproducibility.
-      2) Iterate over each row in 'temp_relationships'.
+      If seed is provided, set the random seed for reproducibility.
+      1) Iterate over each row in 'temp_relationships'. Create basic fields from 'temp_relationships'
          - Extract or generate fields like gender ('Sugu'), birth date ('Sünniaeg'), 
            death date ('Surmaaeg'), and education ('Haridus').
          - Retrieve KOV or address data from 'isikuaadress'.
@@ -28,8 +28,8 @@ def generate_isik(
            via get_kdid_for_name, referencing 'kodifikaator'.
          - Generate a fake name (using Faker), plus a simplistic isikukood (Estonian personal code).
          - Possibly set arrival and departure dates (with a 20% chance each).
-      3) Collect all these fields into a dictionary record and append to 'all_records'.
-      4) Return a DataFrame containing all the new 'Isik' records.
+      2) Collect all these fields into a dictionary record and append to 'all_records'.
+      Return a DataFrame containing all the new 'Isik' records.
 
     :param temp_relationships: DataFrame of people with columns like 
                                ['IsID','Sugu','Sünniaeg','Surmaaeg','Haridus','Aadress','KOV', etc.].
@@ -48,7 +48,9 @@ def generate_isik(
     all_records = []
 
     for idx, row in temp_relationships.iterrows():
+        # -------------------------------------------------------------------
         # 1) Basic fields from temp_relationships
+        # -------------------------------------------------------------------
         person_id = row["IsID"]
         sugu = row["Sugu"] if pd.notnull(row["Sugu"]) else random.choice(["MEES", "NAINE"])
         synniaeg = row["Sünniaeg"] if not pd.isnull(row["Sünniaeg"]) else None
@@ -57,8 +59,8 @@ def generate_isik(
         saabus_eesti = row['IsSaabusEesti'] if pd.notnull(row['IsSaabusEesti']) else None
         lahkus_eestist = row['IsLahkusEestist'] if pd.notnull(row['IsLahkusEestist']) else None        
 
-        # 2) If 'KOV' was provided, we interpret it as 'AKpID' (some local ID). 
-        #    Also we check if the user has an address => find arrival date in isikuaadress if any.
+        # If 'KOV' was provided, we interpret it as 'AKpID' (some local ID). 
+        # Also we check if the user has an address => find arrival date in isikuaadress if any.
         akp_id = row["KOV"] if pd.notnull(row["KOV"]) else None
         aadress_id = row["Aadress"] if pd.notnull(row["Aadress"]) else None
 
@@ -71,7 +73,7 @@ def generate_isik(
         ]
         saabus_kov = df_saabumised.values[0] if len(df_saabumised) > 0 else None
 
-        # 3) Person status: if alive => "ELUS"/"REGISTRIS", if deceased => "SURNUD"/"ARHIIVIS"
+        # Person status: if alive => "ELUS"/"REGISTRIS", if deceased => "SURNUD"/"ARHIIVIS"
         if surmaaeg is None:
             kd_id_isiku_staatus = get_kdid_for_name(kodifikaator, "ELUS")
             kd_id_kirje_staatus = get_kdid_for_name(kodifikaator, "REGISTRIS")
@@ -79,16 +81,16 @@ def generate_isik(
             kd_id_isiku_staatus = get_kdid_for_name(kodifikaator, "SURNUD")
             kd_id_kirje_staatus = get_kdid_for_name(kodifikaator, "ARHIIVIS")
 
-        # 4) Fake names
+        # Fake names
         eesnimi = faker.first_name_male() if sugu == "MEES" else faker.first_name_female()
         perenimi = faker.last_name()
 
-        # 5) Generate isikukood
+        # Generate isikukood
         isikukood = generate_isikukood(sugu, synniaeg)
 
-        # 6) For demonstration, let's say "KdElemendiKood" == "EST" => this is Estonian
-        #    If we want a random foreign code, we do so with some probability
-        #    Here we just pick 'EST' for rahvus, or do a fallback if we want variety
+        # For demonstration, let's say "KdElemendiKood" == "EST" => this is Estonian
+        # If we want a random foreign code, we do so with some probability
+        # Here we just pick 'EST' for rahvus, or do a fallback if we want variety
         est_rows = kodifikaator.loc[
             (kodifikaator["KdElemendiKood"] == "EST") & 
             (kodifikaator["KdKodifikaatoriKood"] == 2),
@@ -105,7 +107,7 @@ def generate_isik(
         kd_id_emakeel = kd_id_rahvus_est
         kd_id_kodakondsus = kd_id_rahvus_est
 
-        # 7) Different nationality, citizenship and mother tongue for people coming to Estonia
+        # Different nationality, citizenship and mother tongue for people coming to Estonia
         if saabus_eesti:
             kd_id_rahvus = kodifikaator.loc[(kodifikaator["KdElemendiKood"] != "EST") & (kodifikaator["KdKodifikaatoriKood"] == 2), 'KdID'].iloc[0]
 
@@ -130,7 +132,9 @@ def generate_isik(
         else:
             muudeti_kpv = None
 
-        # 8) Build the final record
+        # -------------------------------------------------------------------
+        # 2) Build the final record
+        # -------------------------------------------------------------------
         record = {
             "IsID": person_id,                            # Unique key
             "IsIsikukood": isikukood,                     # Personal code

@@ -18,24 +18,24 @@ def make_driver_licenses_invalid_by_date(
     Finds driver's licenses with status 'KEHTIV' and sets their 'DokKehtivKuniKpv'
     to a past date, creating a case where the document appears valid but has expired.
 
-    :param df_dokumendid: `pd.DataFrame`
+    :param df_dokumendid: 'pd.DataFrame'
         Document table. Expected to contain columns:
           - 'DokID'
           - 'KdIDDokumendiLiik'
           - 'KdIDDokumendiStaatus'
           - 'DokKehtivKuniKpv' (date or None)
           - 'MuudetiKpv' (date or None)
-    :param df_kodifikaator: `pd.DataFrame`
+    :param df_kodifikaator: 'pd.DataFrame'
         Codebook table.
-    :param dok_liik_nimi: `str`, default "JUHILUBA"
+    :param dok_liik_nimi: 'str', default "JUHILUBA"
         Short name in the codebook that defines driver's licenses.
-    :param dok_staatus_nimi: `str`, default "KEHTIV"
+    :param dok_staatus_nimi: 'str', default "KEHTIV"
         Status name used to identify documents to be changed.
-    :param num_changes: `int`
+    :param num_changes: 'int'
         How many driver licenses to randomly update. If fewer are available, updates as many as possible.
-    :param seed: `int`, optional
+    :param seed: 'int', optional
         Seed for reproducibility.
-    :return: `pd.DataFrame`
+    :return: 'pd.DataFrame'
         Updated document DataFrame.
     """
 
@@ -69,19 +69,3 @@ def make_driver_licenses_invalid_by_date(
 
     print(f"Updated {len(df_to_update)} driver's licenses to have an expired 'DokKehtivKuniKpv' while keeping status KEHTIV.")
     return df_dokumendid
-
-if __name__ == "__main__":
-    df_dokumendid = pd.read_csv("output/09_dokument.csv", delimiter=",", encoding="ISO-8859-1")
-    df_kodifikaator = pd.read_csv("data/kodifikaator.csv", delimiter=",", encoding="ISO-8859-1")
-
-    df_dokumendid = make_driver_licenses_invalid_by_date(
-        df_dokumendid=df_dokumendid,
-        df_kodifikaator=df_kodifikaator,
-        dok_liik_nimi="JUHILUBA",
-        dok_staatus_nimi="KEHTIV",
-        num_changes=3,
-        seed=42
-    )
-
-    df_dokumendid.to_csv("output/09_dokument.csv", sep=",", index=False)
-    print("Test Case 2: Driver license 'DokKehtivKuniKpv' set to a past date while status remains KEHTIV.")

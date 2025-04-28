@@ -50,7 +50,19 @@ def add_invalid_residences(
     kd_id_elukoht = get_kdid_for_name(df_kodifikaator, "ELUKOHT")
     kd_id_elukohateade = get_kdid_for_name(df_kodifikaator, dok_liik_nimi)
     
-    selected_persons = df_isik.sample(n=person_count, replace=False)
+    # Pick only persons that already have a KEHTIV address
+    kehtiv_ids = (
+        df_isikuaadress.loc[df_isikuaadress["KdIDAadressiStaatus"] == kd_id_kehtiv, "IsID"].dropna().unique()
+    )
+
+    # Randomly choose the persons (avoid replacement)
+    chosen_ids = random.sample(
+        list(kehtiv_ids), 
+        k=min(person_count, len(kehtiv_ids))
+    )
+
+    # Get the full person rows we still need later in the loop
+    selected_persons = df_isik.loc[df_isik["IsID"].isin(chosen_ids)].copy()
     
     start_dok_id = df_dokumendid["DokID"].max() + 1 if len(df_dokumendid) > 0 else 1
     start_iadr_id = df_isikuaadress["IAdrID"].max() + 1 if len(df_isikuaadress) > 0 else 1
@@ -77,7 +89,7 @@ def add_invalid_residences(
             "DokNumber": f"TEST-{dok_id_counter}",
             "DokSeeria": f"S-{random.randint(100, 999)}",
             "DokValjaantudKpv": random_date(datetime(2000, 1, 1), now),
-            "DokKehtivKuniKpv": random_date(datetime(2000, 1, 1), now),
+            "DokKehtivKuniKpv": None,
             "DokKehtetuAlatesKpv": None,
             "AsIDValjaandjaAsutus": random.randint(1, 50),
             "KaIDKanne": None,
@@ -173,44 +185,15 @@ def add_invalid_residences(
         new_person_doc_df = pd.DataFrame(new_isikudokument_rows).dropna(axis=1, how='all')
         df_isikudokument = pd.concat([df_isikudokument, new_person_doc_df], ignore_index=True)
     
-    return df_isikuaadress, df_dokumendid, df_isikudokument
+    for col in ["IAdrKehtibAlatesKpv", "IAdrKehtibKuniKpv",
+                "LoodiKpv", "MuudetiKpv", "KustutatiKpv"]:
+        if col in df_isikuaadress.columns:
+            df_isikuaadress[col] = pd.to_datetime(df_isikuaadress[col], errors="coerce")
 
-if __name__ == "__main__":
-    input_files = {
-        "df_isikuaadress": "output/05_isikuaadress.csv",
-        "df_aadress": "output/01_aadress.csv",
-        "df_dokumendid": "output/09_dokument.csv",
-        "df_isikudokument": "output/08_isikudokument.csv",
-        "df_isik": "output/06_isik.csv",
-        "df_kodifikaator": "data/kodifikaator.csv"
-    }
-    
-    dataframes = {
-        name: pd.read_csv(path, delimiter=",", encoding="ISO-8859-1", low_memory=False)
-        for name, path in input_files.items()
-    }
-    
-    df_isikuaadress = dataframes["df_isikuaadress"]
-    df_aadress = dataframes["df_aadress"]
-    df_dokumendid = dataframes["df_dokumendid"]
-    df_isikudokument = dataframes["df_isikudokument"]
-    df_isik = dataframes["df_isik"]
-    df_kodifikaator = dataframes["df_kodifikaator"]
-    
-    df_isikuaadress, df_dokumendid, df_isikudokument = add_invalid_residences(
-        df_isikuaadress=df_isikuaadress,
-        df_aadress=df_aadress,
-        df_dokumendid=df_dokumendid,
-        df_isikudokument=df_isikudokument,
-        df_isik=df_isik,
-        df_kodifikaator=df_kodifikaator,
-        dok_liik_nimi="ELUKOHATEADE",
-        person_count=5,
-        seed=42
-    )
-    
-    df_isikuaadress.to_csv("output/05_isikuaadress.csv", sep=",", index=False)
-    df_dokumendid.to_csv("output/09_dokument.csv", sep=",", index=False)
-    df_isikudokument.to_csv("output/08_isikudokument.csv", sep=",", index=False)
-    
-    print("New invalid residence (document) records added to isikuaadress, dokumendid, and isikudokument tables.")
+    for col in ["DokValjaantudKpv", "DokKehtivKuniKpv",
+                "DokKehtetuAlatesKpv", "LoodiKpv",
+                "MuudetiKpv", "KustutatiKpv"]:
+        if col in df_dokumendid.columns:
+            df_dokumendid[col] = pd.to_datetime(df_dokumendid[col], errors="coerce")
+
+    return df_isikuaadress, df_dokumendid, df_isikudokument
