@@ -22,6 +22,7 @@ from src.generation.utils import get_kdid_for_name
 
 OUT = Path("output")
 
+
 # ---------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------
@@ -81,19 +82,22 @@ def test_status_matches_period_end(isikuaadress_df: pd.DataFrame, kodifikaator_d
 
     # open periods → KEHTIV / ELUKOHT
     open_rows = isikuaadress_df[isikuaadress_df["IAdrKehtibKuniKpv"].isna()]
-    bad_open = open_rows[(open_rows["KdIDAadressiStaatus"] != kd_kehtiv) | (open_rows["KdIDAadressiLiik"] != kd_elukoht)]
+    bad_open = open_rows[
+        (open_rows["KdIDAadressiStaatus"] != kd_kehtiv) | (open_rows["KdIDAadressiLiik"] != kd_elukoht)]
     assert bad_open.empty, "Open periods must be KEHTIV & ELUKOHT, but found: " + str(bad_open)
 
     # closed periods → KEHTETU / ENDINE ELUKOHT
     closed_rows = isikuaadress_df[isikuaadress_df["IAdrKehtibKuniKpv"].notna()]
-    bad_closed = closed_rows[(closed_rows["KdIDAadressiStaatus"] != kd_kehtetu) | (closed_rows["KdIDAadressiLiik"] != kd_endine)]
+    bad_closed = closed_rows[
+        (closed_rows["KdIDAadressiStaatus"] != kd_kehtetu) | (closed_rows["KdIDAadressiLiik"] != kd_endine)]
     assert bad_closed.empty, "Closed periods must be KEHTETU & ENDINE ELUKOHT, but found: " + str(bad_closed)
 
 
 def test_single_active_residence(isikuaadress_df: pd.DataFrame, kodifikaator_df: pd.DataFrame):
     kd_kehtiv = get_kdid_for_name(kodifikaator_df, "KEHTIV")
     kd_elukoht = get_kdid_for_name(kodifikaator_df, "ELUKOHT")
-    active = isikuaadress_df[(isikuaadress_df["KdIDAadressiStaatus"] == kd_kehtiv) & (isikuaadress_df["KdIDAadressiLiik"] == kd_elukoht)]
+    active = isikuaadress_df[
+        (isikuaadress_df["KdIDAadressiStaatus"] == kd_kehtiv) & (isikuaadress_df["KdIDAadressiLiik"] == kd_elukoht)]
     assert_single_active(active, id_col="IsID")
 
 
@@ -105,6 +109,7 @@ def test_no_overlapping_periods(isikuaadress_df: pd.DataFrame):
         end_col="IAdrKehtibKuniKpv",
     )
 
+
 def test_kehtiv_residence_not_in_future(isikuaadress_df: pd.DataFrame, kodifikaator_df: pd.DataFrame):
     kd_kehtiv = get_kdid_for_name(kodifikaator_df, "KEHTIV")
 
@@ -112,7 +117,7 @@ def test_kehtiv_residence_not_in_future(isikuaadress_df: pd.DataFrame, kodifikaa
     future_rows = isikuaadress_df[
         (isikuaadress_df["KdIDAadressiStaatus"] == kd_kehtiv)
         & (isikuaadress_df["IAdrKehtibAlatesKpv"] > datetime.now())
-    ]
+        ]
     assert future_rows.empty, (
         "Found KEHTIV residence entries with a start date in the future:\n"
         f"{future_rows[['IsID', 'IAdrID', 'IAdrKehtibAlatesKpv']].head()}"

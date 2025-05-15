@@ -2,20 +2,22 @@ import random
 import pandas as pd
 from datetime import datetime, timedelta
 
+
 def get_kdid_for_name(df_kod, short_name: str):
     """Retrieve KdID for a given short name from the codebook DataFrame."""
     rows = df_kod.loc[df_kod['KdLyhikeNimi'] == short_name, 'KdID']
     return rows.iloc[0] if len(rows) else None
 
+
 def shift_valid_residences_of_immigrants_to_future(
-    df_isik: pd.DataFrame,
-    df_isikudokument: pd.DataFrame,
-    df_isikuaadress: pd.DataFrame,
-    df_dokumendid: pd.DataFrame,
-    df_kodifikaator: pd.DataFrame,
-    future_days: int = 365,
-    dok_liik_nimi: str = "ELUKOHATEADE",
-    seed: int = None
+        df_isik: pd.DataFrame,
+        df_isikudokument: pd.DataFrame,
+        df_isikuaadress: pd.DataFrame,
+        df_dokumendid: pd.DataFrame,
+        df_kodifikaator: pd.DataFrame,
+        future_days: int = 365,
+        dok_liik_nimi: str = "ELUKOHATEADE",
+        seed: int = None
 ) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     """
     For persons who have 'IsSaabusEesti' filled (immigrants),
@@ -57,16 +59,16 @@ def shift_valid_residences_of_immigrants_to_future(
 
         # Update residence address start dates for KEHTIV entries
         mask_iadr = (
-            (df_isikuaadress["IsID"] == is_id) &
-            (df_isikuaadress["KdIDAadressiStaatus"] == kd_id_kehtiv)
+                (df_isikuaadress["IsID"] == is_id) &
+                (df_isikuaadress["KdIDAadressiStaatus"] == kd_id_kehtiv)
         )
         df_isikuaadress.loc[mask_iadr, "IAdrKehtibAlatesKpv"] = future_date
 
         # Update residence documents start dates for KEHTIV ELUKOHATEADE
         mask_dok = (
-            (df_dokumendid["IsID"] == is_id) &
-            (df_dokumendid["KdIDDokumendiLiik"] == kd_id_elukohateade) &
-            (df_dokumendid["KdIDDokumendiStaatus"] == kd_id_kehtiv)
+                (df_dokumendid["IsID"] == is_id) &
+                (df_dokumendid["KdIDDokumendiLiik"] == kd_id_elukohateade) &
+                (df_dokumendid["KdIDDokumendiStaatus"] == kd_id_kehtiv)
         )
         df_dokumendid.loc[mask_dok, "DokKehtibAlatesKpv"] = future_date
 

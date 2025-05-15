@@ -3,15 +3,16 @@ import pandas as pd
 from datetime import datetime
 from src.generation.utils import random_date, get_kdid_for_name
 
+
 def generate_person_document(
-    df_source: pd.DataFrame,
-    kodifikaator: pd.DataFrame,
-    doc_type: str = "MUU",
-    mode: str = "source",
-    source_cols: dict = None,
-    start_doc_id: int = 1,
-    earliest_date: datetime = datetime(1980, 1, 1),
-    seed: int = None
+        df_source: pd.DataFrame,
+        kodifikaator: pd.DataFrame,
+        doc_type: str = "MUU",
+        mode: str = "source",
+        source_cols: dict = None,
+        start_doc_id: int = 1,
+        earliest_date: datetime = datetime(1980, 1, 1),
+        seed: int = None
 ) -> pd.DataFrame:
     """
     Generate a 'Dokument' table for individuals.
@@ -68,19 +69,27 @@ def generate_person_document(
     kd_id_kehtetu = get_kdid_for_name(kodifikaator, "KEHTETU")
     kd_id_riik = get_kdid_for_name(kodifikaator, "EE")
 
+    n_rows = len(df_source)
+    chance_issued_as_start_all = [random.random() < 0.9 for _ in range(n_rows)]
+    chance_kehtetu_is_end_all = [random.random() < 0.9 for _ in range(n_rows)]
+    chance_kustutati_all = [random.random() < 0.05 for _ in range(n_rows)]
+    chance_muudeti_kehtiv_all = [random.random() < 1.0 for _ in range(n_rows)]
+    # Only relevant in random mode
+    chance_ended_random_all = [random.random() <  0.3 for _ in range(n_rows)]
+
     now = datetime.now()
     rows = []
     doc_id_counter = start_doc_id
 
-    for i in range(len(df_source)):
+    for idx in range(len(df_source)):
         dok_id = doc_id_counter
         doc_id_counter += 1
 
-        is_id = df_source.loc[i, is_id_col] if is_id_col in df_source.columns else None
+        is_id = df_source.loc[idx, is_id_col] if is_id_col in df_source.columns else None
 
         # LoodiKpv
         if loodi_date_col and loodi_date_col in df_source.columns:
-            loodi_kpv = df_source.loc[i, loodi_date_col]
+            loodi_kpv = df_source.loc[idx, loodi_date_col]
             if pd.isnull(loodi_kpv):
                 loodi_kpv = random_date(earliest_date, now)
         else:
@@ -92,55 +101,58 @@ def generate_person_document(
 
         # Validity dates
         if mode == "source":
-            start_ = df_source.loc[i, start_date_col] if start_date_col and start_date_col in df_source.columns else random_date(loodi_kpv, now)
-            end_ = df_source.loc[i, end_date_col] if end_date_col and end_date_col in df_source.columns else None
+            start_ = df_source.loc[idx, start_date_col] if start_date_col and start_date_col in df_source.columns else random_date(loodi_kpv, now)
+            end_ = df_source.loc[idx, end_date_col] if end_date_col and end_date_col in df_source.columns else None
 
-            dok_valjaantud_kpv = start_ if random.random() < 0.9 and pd.notnull(start_) else random_date(loodi_kpv, now)
+            dok_valjaantud_kpv = start_ if chance_issued_as_start_all[idx] and pd.notnull(start_) else random_date(loodi_kpv, now)
             dok_kehtiv_alates = start_
 
             if pd.isnull(end_):
+                # KEHTIV
                 kd_id_staatus = kd_id_kehtiv
                 dok_kehtiv_kuni_kpv = None
                 dok_kehtetu_alates_kpv = None
-                muudeti_kpv = random_date(loodi_kpv, now)
+                if chance_muudeti_kehtiv_all[idx]:
+                    muudeti_kpv = random_date(loodi_kpv, now)
             else:
+                # KEHTETU
                 kd_id_staatus = kd_id_kehtetu
                 dok_kehtiv_kuni_kpv = end_
-                dok_kehtetu_alates_kpv = end_ if random.random() < 0.9 else random_date(end_, now)
+                if chance_kehtetu_is_end_all[idx]:
+                    dok_kehtetu_alates_kpv = end_
+                else:
+                    dok_kehtetu_alates_kpv = random_date(end_, now)
                 muudeti_kpv = dok_kehtetu_alates_kpv
-
-                if random.random() < 0.05:
-                    kustutati_kpv = random_date(loodi_kpv, now)
-                    muudeti_kpv = kustutati_kpv
 
         else:  # mode == "random"
             dok_valjaantud_kpv = random_date(loodi_kpv, now)
             dok_kehtiv_alates = dok_valjaantud_kpv
 
-            if random.random() < 0.3:
+            if chance_ended_random_all[idx]:
+                # Ended → KEHTETU
                 kd_id_staatus = kd_id_kehtetu
                 dok_kehtiv_kuni_kpv = random_date(dok_valjaantud_kpv, now)
-                dok_kehtetu_alates_kpv = dok_kehtiv_kuni_kpv if random.random() < 0.9 else random_date(dok_kehtiv_kuni_kpv, now)
+                dok_kehtetu_alates_kpv = (
+                    dok_kehtiv_kuni_kpv if chance_kehtetu_is_end_all[idx] else random_date(dok_kehtiv_kuni_kpv, now)
+                )
                 muudeti_kpv = dok_kehtetu_alates_kpv
-
-                if random.random() < 0.05:
-                    kustutati_kpv = random_date(loodi_kpv, now)
-                    muudeti_kpv = kustutati_kpv
             else:
+                # Ongoing → KEHTIV
                 kd_id_staatus = kd_id_kehtiv
                 dok_kehtiv_kuni_kpv = None
                 dok_kehtetu_alates_kpv = None
-                muudeti_kpv = random_date(loodi_kpv, now)
+                if chance_muudeti_kehtiv_all[idx]:
+                    muudeti_kpv = random_date(loodi_kpv, now)
 
-        if kustutati_kpv is not None:
-            muudeti_kpv = kustutati_kpv
-
+        if chance_kustutati_all[idx]:
+            kustutati_kpv = random_date(loodi_kpv, now)
+            muudeti_kpv = kustutati_kpv  # Always equal when deleted
 
         row = {
             "IsID": is_id,
             "DokID": dok_id,
             "KdIDDokumendiLiik": kd_id_dokumendi_liik,
-            "DokNumber": f"{doc_type}-{i:07d}",
+            "DokNumber": f"{doc_type}-{idx:07d}",
             "DokSeeria": f"S-{random.randint(100, 999)}",
             "DokValjaantudKpv": dok_valjaantud_kpv,
             "DokKehtivKuniKpv": dok_kehtiv_kuni_kpv,

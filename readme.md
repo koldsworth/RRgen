@@ -8,39 +8,40 @@ Use `generate.py` to generate a synthetic dataset:
 python generate.py --records 5000 --output output_folder --seed 11
 ```
 
+**Arguments:**
 - `--records` - Number of records to generate  
 - `--output` - Path to output folder  
-- `--seed` - *(Optional)* Seed for reproducibility
+- `--seed` - *(Optional)* Random seed for reproducibility
 
 ---
 
-### 2. Run Validation Tests
+### 2. Inject Errors (Optional)
 
-Use `run_tests.py` to validate the generated data using **pytest**:
-
-```
-python run_tests.py
-```
-
-This runs all test files in the default folder: `src/validation`.
-
-To run a specific test file or folder:
+Use `generate_errors.py` to inject rule-violating data for testing validation logic:
 
 ```
-python run_tests.py --path src/validation/test_rules.py
+python generate_errors.py --tests 1,2
 ```
 
-#### Optional Arguments
+**Arguments:**
+- `--tests` - Comma-separated list of test cases to run (e.g. `1,2,3`). If omitted, runs all.
 
-- `--path` - Path to folder or test file(s) to run  
-  *(Default: `src/validation`)*
-- `--capture` - How to capture pytest output (`no`, `sys`, or `fd`)  
-  *(Default: `no`)*
+---
 
-#### Example with Custom Output Capture
+### 3. Run Validation Tests
+
+Use `run_validation_tests.py` to validate the generated dataset using **pytest**:
 
 ```
-python run_tests.py --path src/validation --capture=sys
+python run_validation_tests.py
 ```
 
-This will check for logical inconsistencies and rule violations in the dataset using the defined test rules.
+By default, this runs all tests in the folder: `src/validation`.
+
+You can also specify a file or folder with `--path`, and configure pytest output with `--capture`.
+
+**Example:**
+
+```
+python run_validation_tests.py --path src/validation/test_isik.py --capture sys
+```

@@ -1,13 +1,14 @@
 import random
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from src.generation.utils import random_date
 
+
 def generate_isikudokument(
-    df_docs: pd.DataFrame,
-    df_isik: pd.DataFrame,
-    doc_isik_merge_on: str = "IsID",
-    seed: int = None
+        df_docs: pd.DataFrame,
+        df_isik: pd.DataFrame,
+        doc_isik_merge_on: str = "IsID",
+        seed: int = None
 ) -> pd.DataFrame:
     """
     Build the bridging table "IsikuDokument":
@@ -61,6 +62,10 @@ def generate_isikudokument(
     i_dok_id_counter = 1
 
     for idx, row in merged.iterrows():
+        chance_vana_fields = random.random() < 0.05
+        chance_bridging_update = random.random() < 0.5
+        chance_bridging_deleted = random.random() < 0.05
+        
         dok_id = row["DokID"]
         is_id = row["IsID"]
 
@@ -70,11 +75,11 @@ def generate_isikudokument(
         perenimi = row.get("IsPerenimi", None)
         isanimi = row.get("IsIsanimi", None)
 
-        # 5% chance we set "old" fields
-        if random.random() < 0.05:
+        # A set chance we set "old" fields
+        if chance_vana_fields:
             vana_eesnimi = "Vana-" + (eesnimi if eesnimi else "")
             vana_perenimi = "Vana-" + (perenimi if perenimi else "")
-            vana_isikukood = f"OLD-{random.randint(1000,9999)}"
+            vana_isikukood = f"OLD-{random.randint(1000, 9999)}"
         else:
             vana_eesnimi = None
             vana_perenimi = None
@@ -88,15 +93,11 @@ def generate_isikudokument(
         bridging_loodi = random_date(doc_loodi, now)
 
         # Possibly set MuudetiKpv, KustutatiKpv
-        bridging_muudeti = None
+        bridging_muudeti = random_date(bridging_loodi, now) if chance_bridging_update else None
         bridging_kustutati = None
 
-        # 50% chance for a bridging update
-        if random.random() < 0.5:
-            bridging_muudeti = random_date(bridging_loodi, now)
-
-        # 5% chance bridging is "deleted"
-        if random.random() < 0.05:
+        # A set chance bridging is "deleted"
+        if chance_bridging_deleted:
             bridging_kustutati = random_date(bridging_loodi, now)
             bridging_muudeti = bridging_kustutati
 

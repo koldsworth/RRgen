@@ -85,6 +85,7 @@ def test_dokid_unique(dokument_df: pd.DataFrame):
     """Primary‑key constraint: DokID unique & not‑null."""
     assert_unique_not_null(dokument_df, "DokID", label="DokID")
 
+
 # ---------------------------------------------------------------------------
 # Status‑vs‑dates business rules
 # ---------------------------------------------------------------------------
@@ -97,7 +98,7 @@ def test_status_and_expiry_logic(dokument_df: pd.DataFrame, kodifikaator_df: pd.
     invalid_kehtiv = dokument_df[
         (dokument_df["KdIDDokumendiStaatus"] == kd_kehtiv)
         & dokument_df["DokKehtivKuniKpv"].notna()
-    ]
+        ]
     assert invalid_kehtiv.empty, (
         "Documents with status=KEHTIV must not have DokKehtivKuniKpv populated: "
         f"{invalid_kehtiv[['DokID', 'DokKehtivKuniKpv']].head()}"
@@ -107,7 +108,7 @@ def test_status_and_expiry_logic(dokument_df: pd.DataFrame, kodifikaator_df: pd.
     invalid_kuni = dokument_df[
         dokument_df["DokKehtivKuniKpv"].notna()
         & (dokument_df["KdIDDokumendiStaatus"] != kd_kehtetu)
-    ]
+        ]
     assert invalid_kuni.empty, (
         "DokKehtivKuniKpv present but status ≠ KEHTETU for: "
         f"{invalid_kuni[['DokID', 'KdIDDokumendiStaatus']].head()}"
@@ -121,9 +122,9 @@ def test_status_and_expiry_logic(dokument_df: pd.DataFrame, kodifikaator_df: pd.
 def test_deleted_rows_coherence(dokument_df: pd.DataFrame):
     deleted = dokument_df[dokument_df["KustutatiKpv"].notna()]
     mismatch = deleted[
-    deleted["MuudetiKpv"].notna() &  # require present
-    (deleted["MuudetiKpv"] != deleted["KustutatiKpv"])
-    ]
+        deleted["MuudetiKpv"].notna() &  # require present
+        (deleted["MuudetiKpv"] != deleted["KustutatiKpv"])
+        ]
     assert mismatch.empty, (
         "For deleted documents MuudetiKpv must equal KustutatiKpv: "
         f"{mismatch[['DokID', 'MuudetiKpv', 'KustutatiKpv']].head()}"

@@ -1,17 +1,17 @@
 import random
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from faker import Faker
 from src.generation.utils import random_date, get_kdid_for_name, generate_isikukood
 
-
 faker = Faker('et_EE')  # For Estonian-style names.
 
+
 def generate_isik(
-    temp_relationships: pd.DataFrame,
-    isikuaadress: pd.DataFrame,
-    kodifikaator: pd.DataFrame,
-    seed: int = None
+        temp_relationships: pd.DataFrame,
+        isikuaadress: pd.DataFrame,
+        kodifikaator: pd.DataFrame,
+        seed: int = None
 ) -> pd.DataFrame:
     """
     Build the 'Isik' table from an existing relationships DataFrame ('temp_relationships'),
@@ -21,7 +21,7 @@ def generate_isik(
     Logic:
       If seed is provided, set the random seed for reproducibility.
       1) Iterate over each row in 'temp_relationships'. Create basic fields from 'temp_relationships'
-         - Extract or generate fields like gender ('Sugu'), birth date ('Sünniaeg'), 
+         - Extract or generate fields like gender ('Sugu'), birthdate ('Sünniaeg'),
            death date ('Surmaaeg'), and education ('Haridus').
          - Retrieve KOV or address data from 'isikuaadress'.
          - Set a status code ('ELUS'/'SURNUD') + record status ('REGISTRIS'/'ARHIIVIS')
@@ -45,6 +45,9 @@ def generate_isik(
         random.seed(seed)
 
     now = datetime.now()
+
+    chance_muudeti_all = [random.random() < 0.5 for _ in range(len(temp_relationships))]
+
     all_records = []
 
     for idx, row in temp_relationships.iterrows():
@@ -57,10 +60,10 @@ def generate_isik(
         surmaaeg = row["Surmaaeg"] if not pd.isnull(row["Surmaaeg"]) else None
         haridus = row["Haridus"] if pd.notnull(row["Haridus"]) else None
         saabus_eesti = row['IsSaabusEesti'] if pd.notnull(row['IsSaabusEesti']) else None
-        lahkus_eestist = row['IsLahkusEestist'] if pd.notnull(row['IsLahkusEestist']) else None        
+        lahkus_eestist = row['IsLahkusEestist'] if pd.notnull(row['IsLahkusEestist']) else None
 
         # If 'KOV' was provided, we interpret it as 'AKpID' (some local ID). 
-        # Also we check if the user has an address => find arrival date in isikuaadress if any.
+        # Also, we check if the user has an address => find arrival date in isikuaadress if any.
         akp_id = row["KOV"] if pd.notnull(row["KOV"]) else None
         aadress_id = row["Aadress"] if pd.notnull(row["Aadress"]) else None
 
@@ -92,7 +95,7 @@ def generate_isik(
         # If we want a random foreign code, we do so with some probability
         # Here we just pick 'EST' for rahvus, or do a fallback if we want variety
         est_rows = kodifikaator.loc[
-            (kodifikaator["KdElemendiKood"] == "EST") & 
+            (kodifikaator["KdElemendiKood"] == "EST") &
             (kodifikaator["KdKodifikaatoriKood"] == 2),
             "KdID"
         ]
@@ -109,11 +112,12 @@ def generate_isik(
 
         # Different nationality, citizenship and mother tongue for people coming to Estonia
         if saabus_eesti:
-            kd_id_rahvus = kodifikaator.loc[(kodifikaator["KdElemendiKood"] != "EST") & (kodifikaator["KdKodifikaatoriKood"] == 2), 'KdID'].iloc[0]
+            kd_id_rahvus = kodifikaator.loc[
+                (kodifikaator["KdElemendiKood"] != "EST") & (kodifikaator["KdKodifikaatoriKood"] == 2), 'KdID'].iloc[0]
 
             # For the sake of example, pick a random non-EST code
             non_est = kodifikaator.loc[
-                (kodifikaator["KdElemendiKood"] != "EST") & 
+                (kodifikaator["KdElemendiKood"] != "EST") &
                 (kodifikaator["KdKodifikaatoriKood"] == 2),
                 "KdID"
             ]
@@ -123,11 +127,11 @@ def generate_isik(
                 kd_id_kodakondsus = kd_id_rahvus
 
         if synniaeg:
-            loodi_kpv = synniaeg 
+            loodi_kpv = synniaeg
         else:
-            loodi_kpv= now
+            loodi_kpv = now
 
-        if random.random() < 0.5:
+        if chance_muudeti_all[idx]:
             muudeti_kpv = random_date(loodi_kpv, now)
         else:
             muudeti_kpv = None
@@ -136,35 +140,35 @@ def generate_isik(
         # 2) Build the final record
         # -------------------------------------------------------------------
         record = {
-            "IsID": person_id,                            # Unique key
-            "IsIsikukood": isikukood,                     # Personal code
+            "IsID": person_id,  # Unique key
+            "IsIsikukood": isikukood,  # Personal code
             "IsEesnimi": eesnimi,
             "IsPerenimi": perenimi,
             "IsSurmaaeg": surmaaeg,
-            "KdIDHaridus": haridus,                       # Education code
-            "KdIDEmakeel": kd_id_emakeel,                 # Language code
-            "KdIDRahvus": kd_id_rahvus,                   # Ethnicity
-            "KdIDPerekonnaseis": None,                    # Not implemented here
-            "KdIDKodakondsus": kd_id_kodakondsus,         # Citizenship
-            "IsIsanimi": faker.first_name_male(),         # Father name as a placeholder
-            "IsSynnijargneNimi": eesnimi,                 # Person's original birth name
-            "KdIDIsikuStaatus": kd_id_isiku_staatus,      # ELUS/SURNUD
-            "KdIDKirjeStaatus": kd_id_kirje_staatus,      # REGISTRIS/ARHIIVIS
-            "KdIDPohjus": None,                           # Reason for archival, if any
-            "KdIDSugu": sugu,                             # "MEES"/"NAINE"
-            "isSynniaeg": synniaeg,                       # Actual birth date
+            "KdIDHaridus": haridus,  # Education code
+            "KdIDEmakeel": kd_id_emakeel,  # Language code
+            "KdIDRahvus": kd_id_rahvus,  # Ethnicity
+            "KdIDPerekonnaseis": None,  # Not implemented here
+            "KdIDKodakondsus": kd_id_kodakondsus,  # Citizenship
+            "IsIsanimi": faker.first_name_male(),  # Father name as a placeholder
+            "IsSynnijargneNimi": eesnimi,  # Person's original birth name
+            "KdIDIsikuStaatus": kd_id_isiku_staatus,  # ELUS/SURNUD
+            "KdIDKirjeStaatus": kd_id_kirje_staatus,  # REGISTRIS/ARHIIVIS
+            "KdIDPohjus": None,  # Reason for archival, if any
+            "KdIDSugu": sugu,  # "MEES"/"NAINE"
+            "isSynniaeg": synniaeg,  # Actual birthdate
             "IsSaabusEesti": saabus_eesti,
             "IsLahkusEestist": lahkus_eestist,
-            "IsSaabusKOViKpv": saabus_kov,                # Date of arrival in KOV if known
-            "AKpID": akp_id,                              # KOV aadress component id
+            "IsSaabusKOViKpv": saabus_kov,  # Date of arrival in KOV if known
+            "AKpID": akp_id,  # KOV aadress component id
             "IsEesnimiEri": eesnimi,
             "IsPerenimiEri": perenimi,
             "IdKiht": None,
-            "IAsIDLooja": None,         
-            "LoodiKpv": loodi_kpv,                       # Record creation time
-            "IAsIDMuutja": None,        
-            "MuudetiKpv": muudeti_kpv,                   # A random modification date in the last 5 years
-            "KustutatiKpv": None                         # Marked as deleted. Not used here
+            "IAsIDLooja": None,
+            "LoodiKpv": loodi_kpv,  # Record creation time
+            "IAsIDMuutja": None,
+            "MuudetiKpv": muudeti_kpv,  # A random modification date in the last 5 years
+            "KustutatiKpv": None  # Marked as deleted. Not used here
         }
 
         all_records.append(record)

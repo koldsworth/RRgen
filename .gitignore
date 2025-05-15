@@ -5,12 +5,11 @@
 __pycache__/
 .pytest_cache/
 
-# Keep the output folder (empty) via .gitkeep
-output/*
-!output/.gitkeep
-
 # Ignore everything in data/...
 data/*
 
 # ...except this specific file
 !data/kodifikaator.csv
+!data/readme.md
+
+.idea/

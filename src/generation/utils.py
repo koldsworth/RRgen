@@ -24,10 +24,9 @@ def random_date(start: datetime, end: datetime) -> datetime:
     return start + timedelta(days=random_days)
 
 
-
 def generate_isikukood(gender: str, birth_date: datetime) -> str:
     """
-    Generate a simplistic Estonian-style personal code (isikukood) based on birth date and gender.
+    Generate a simplistic Estonian-style personal code (isikukood) based on birthdate and gender.
 
     Note: This is a simplified example for demonstration purposes.
           In real usage, proper control numbers and uniqueness checks would be needed.
@@ -80,6 +79,8 @@ def adjust_timeline_for_death(df_kodifikaator: pd.DataFrame, timeline: list, dea
       3) If a period ends after the death date or has no end,
          truncate that period to the death date and mark it as "Kehtetu" / "Endine elukoht".
 
+    :param df_kodifikaator: DataFrame with code references.
+                         E.g., used by get_kdid_for_name for 'ELUS','SURNUD','REGISTRIS','ARHIIVIS'.
     :param timeline: A list of dictionaries, each representing a period with keys like
                      ["IAdrKehtibAlatesKpv", "IAdrKehtibKuniKpv", "KdIDAadressiStaatus", etc.].
     :param death_date: The person's date of death (datetime or None).
@@ -108,7 +109,7 @@ def adjust_timeline_for_death(df_kodifikaator: pd.DataFrame, timeline: list, dea
         #    truncate it to the death date and set status to "Kehtetu".
         if end_kpv is None or end_kpv > death_date:
             row["IAdrKehtibKuniKpv"] = death_date
-            row["KdIDAadressiStaatus"] = kdid_kehtetu     
+            row["KdIDAadressiStaatus"] = kdid_kehtetu
             row["KdIDAadressiLiik"] = kdid_endine_elukoht
 
         updated.append(row)

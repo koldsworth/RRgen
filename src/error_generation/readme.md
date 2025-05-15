@@ -16,4 +16,4 @@ The following test cases are designed to generate invalid data that intentionall
 
 ---
 
-Tests are currently executed using the `run_tests.py` script.
+Tests are currently executed using the `generate_errors.py` script.

@@ -4,12 +4,13 @@ from datetime import datetime
 
 from src.generation.utils import get_kdid_for_name, random_date
 
+
 def generate_kodakondsus(
-    df_isik: pd.DataFrame,
-    kodifikaator: pd.DataFrame,
-    start_doc_id: int = 1000,
-    seed: int = None,
-    earliest_date: datetime = datetime(1950, 1, 1)
+        df_isik: pd.DataFrame,
+        kodifikaator: pd.DataFrame,
+        start_doc_id: int = 1000,
+        seed: int = None,
+        earliest_date: datetime = datetime(1950, 1, 1)
 ) -> pd.DataFrame:
     """
     Generate a 'Kodakondsus' (citizenship) table for individuals.
@@ -40,6 +41,10 @@ def generate_kodakondsus(
     if seed is not None:
         random.seed(seed)
 
+    chance_ended_all = [random.random() < 0.2 for _ in range(len(df_isik))]
+    chance_kustutati_all = [random.random() < 0.05 for _ in range(len(df_isik))]
+    chance_muudeti_all = [random.random() < 0.5 for _ in range(len(df_isik))]
+
     kd_id_kehtiv = get_kdid_for_name(kodifikaator, 'KEHTIV')
     kd_id_kehtetu = get_kdid_for_name(kodifikaator, 'KEHTETU')
 
@@ -66,7 +71,7 @@ def generate_kodakondsus(
         dok_id_algus = doc_id_counter
         doc_id_counter += 1
 
-        if random.random() < 0.2:
+        if chance_ended_all[idx]:
             # Citizenship ended
             kod_kehtib_kuni = random_date(kod_kehtib_alates, now)
             kd_id_status = kd_id_kehtetu
@@ -74,7 +79,7 @@ def generate_kodakondsus(
             dok_id_lopp = doc_id_counter
             doc_id_counter += 1
 
-            if random.random() < 0.05:
+            if chance_kustutati_all[idx]:
                 kustutati = kod_kehtib_kuni
                 muudeti = kustutati
             else:
@@ -87,7 +92,7 @@ def generate_kodakondsus(
             kd_id_status = kd_id_kehtiv
             dok_id_lopp = None
             kustutati = None
-            muudeti = random_date(loodi, now) if random.random() < 0.5 else None
+            muudeti = random_date(loodi, now) if chance_muudeti_all[idx] else None
 
         record = {
             "KodID": kod_id_counter,

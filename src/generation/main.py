@@ -21,9 +21,11 @@ INPUT_FILES = {
     "asutus": "data/asutus.xlsx"
 }
 
+
 # Helper function to print progress with timestamps
 def log_progress(step_name):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {step_name}...")
+
 
 # Load all input data files into Pandas DataFrames
 def load_data():
@@ -31,19 +33,23 @@ def load_data():
     try:
         return {
             "kodifikaator": pd.read_csv(INPUT_FILES["kodifikaator"], delimiter=",", encoding="ISO-8859-1"),
-            "aadress": pd.read_csv(INPUT_FILES["aadress"], delimiter=";", encoding="ISO-8859-1",low_memory=False),
-            "aadresskomponent": pd.read_csv(INPUT_FILES["aadresskomponent"], delimiter=";", encoding="ISO-8859-1",low_memory=False),
+            "aadress": pd.read_csv(INPUT_FILES["aadress"], delimiter=";", encoding="ISO-8859-1", low_memory=False),
+            "aadresskomponent": pd.read_csv(INPUT_FILES["aadresskomponent"], delimiter=";", encoding="ISO-8859-1",
+                                            low_memory=False),
             "asutus": pd.read_excel(INPUT_FILES["asutus"])
         }
     except Exception as e:
         print(f"Error loading files: {e}")
         exit(1)
 
+
 # Generate all required tables based on input data
 def generate_tables(data, num_records=10000, seed=42):
     log_progress("Generating address data")
-    gen_df_adr = generate_aadress(df=data["aadress"], df_kodifikaator=data["kodifikaator"], num_records=num_records, seed=seed)
-    gen_df_ak = generate_aadress_komponent(df=data["aadresskomponent"][:num_records], df_kodifikaator=data["kodifikaator"])
+    gen_df_adr = generate_aadress(df=data["aadress"], df_kodifikaator=data["kodifikaator"], num_records=num_records,
+                                  seed=seed)
+    gen_df_ak = generate_aadress_komponent(df=data["aadresskomponent"][:num_records],
+                                           df_kodifikaator=data["kodifikaator"])
 
     log_progress("Generating temporary relationships")
     gen_temp_rel = generate_temp_relatsionships(
@@ -80,7 +86,8 @@ def generate_tables(data, num_records=10000, seed=42):
 
     log_progress("Generating citizenship data")
     new_dokid_counter = gen_df_iadr['DokIDAlus'].max()
-    gen_df_kk = generate_kodakondsus(df_isik=gen_df_is, kodifikaator=data["kodifikaator"], start_doc_id=new_dokid_counter)
+    gen_df_kk = generate_kodakondsus(df_isik=gen_df_is, kodifikaator=data["kodifikaator"],
+                                     start_doc_id=new_dokid_counter)
 
     doc_definitions = [
         ("ELUKOHATEADE", gen_df_iadr, {
@@ -149,6 +156,7 @@ def generate_tables(data, num_records=10000, seed=42):
         "09_dokument.csv": gen_df_docs
     }
 
+
 def save_to_csv(dataframes):
     log_progress("Saving generated data to CSV")
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -161,6 +169,7 @@ def save_to_csv(dataframes):
 
     log_progress("Data generation complete. CSV files are in the 'output' folder.")
 
+
 def inject_ias_metadata_to_csv_folder(df_isik_asutus: pd.DataFrame) -> None:
     """
     Populate IAsIDLooja, IAsIDMuutja and AsID columns in every CSV found in
@@ -170,22 +179,22 @@ def inject_ias_metadata_to_csv_folder(df_isik_asutus: pd.DataFrame) -> None:
 
     # Pre-process the lookup table only once
     df_isik_asutus = df_isik_asutus.copy()
-    date_col =  "IAsKinniKpv"
+    date_col = "IAsKinniKpv"
     df_isik_asutus[date_col] = df_isik_asutus[date_col].apply(
-        pd.to_datetime, errors="coerce", format = "%Y.%m.%d %H:%M:%S"
+        pd.to_datetime, errors="coerce", format="%Y.%m.%d %H:%M:%S"
     )
 
-    @lru_cache(maxsize=None)   # unlimited cache – every distinct ts cached once
+    @lru_cache(maxsize=None)  # unlimited cache – every distinct ts cached once
     def choose_random_id(ts: pd.Timestamp):
-        """Return a random (IAsID, AsID) that was active at *ts*."""
+        """Return a random (IAsID, AsID) that was active at ts."""
         if pd.isna(ts):
-            return (None, None)
+            return None, None
 
         mask = (
             (df_isik_asutus["IAsKinniKpv"] <= ts)
         )
         if not mask.any():
-            return (None, None)
+            return None, None
 
         chosen = df_isik_asutus.loc[mask].sample(1).iloc[0]
         return chosen["IAsID"], chosen["AsID"]
@@ -200,7 +209,7 @@ def inject_ias_metadata_to_csv_folder(df_isik_asutus: pd.DataFrame) -> None:
 
         # Relevant date columns present in this file
         ts_cols = [c for c in ["LoodiKpv", "MuudetiKpv", "KustutatiKpv"] if c in df]
-        if not ts_cols:       # nothing to do
+        if not ts_cols:  # nothing to do
             continue
 
         df[ts_cols] = df[ts_cols].apply(pd.to_datetime, errors="coerce")
@@ -228,6 +237,7 @@ def inject_ias_metadata_to_csv_folder(df_isik_asutus: pd.DataFrame) -> None:
         df.to_csv(path, index=False)
         print(f"Updated: {filename}")
 
+
 def main(num_records=10000, output_folder="output", seed=42):
     global OUTPUT_FOLDER
     OUTPUT_FOLDER = output_folder
@@ -242,4 +252,3 @@ def main(num_records=10000, output_folder="output", seed=42):
     inject_ias_metadata_to_csv_folder(df_ias)
 
     log_progress("Process completed successfully")
-

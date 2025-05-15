@@ -2,10 +2,12 @@ import random
 import pandas as pd
 from datetime import datetime, timedelta
 
+
 def get_kdid_for_name(df_kod, short_name: str):
     """Retrieve KdID for a given short name from the codebook DataFrame."""
     rows = df_kod.loc[df_kod['KdLyhikeNimi'] == short_name, 'KdID']
     return rows.iloc[0] if len(rows) else None
+
 
 def random_date(start: datetime, end: datetime) -> datetime:
     """Generate a random date between start and end."""
@@ -13,16 +15,17 @@ def random_date(start: datetime, end: datetime) -> datetime:
     random_days = random.randint(0, delta.days)
     return start + timedelta(days=random_days)
 
+
 def add_invalid_residences(
-    df_isikuaadress: pd.DataFrame,
-    df_aadress: pd.DataFrame,
-    df_dokumendid: pd.DataFrame,
-    df_isikudokument: pd.DataFrame,
-    df_isik: pd.DataFrame,
-    df_kodifikaator: pd.DataFrame,
-    dok_liik_nimi: str = "ELUKOHATEADE",
-    person_count: int = 5,
-    seed: int = None
+        df_isikuaadress: pd.DataFrame,
+        df_aadress: pd.DataFrame,
+        df_dokumendid: pd.DataFrame,
+        df_isikudokument: pd.DataFrame,
+        df_isik: pd.DataFrame,
+        df_kodifikaator: pd.DataFrame,
+        dok_liik_nimi: str = "ELUKOHATEADE",
+        person_count: int = 5,
+        seed: int = None
 ) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     """
     Creates a second valid residence address for selected persons (in df_isikuaadress),
@@ -45,11 +48,11 @@ def add_invalid_residences(
     """
     if seed is not None:
         random.seed(seed)
-    
+
     kd_id_kehtiv = get_kdid_for_name(df_kodifikaator, "KEHTIV")
     kd_id_elukoht = get_kdid_for_name(df_kodifikaator, "ELUKOHT")
     kd_id_elukohateade = get_kdid_for_name(df_kodifikaator, dok_liik_nimi)
-    
+
     # Pick only persons that already have a KEHTIV address
     kehtiv_ids = (
         df_isikuaadress.loc[df_isikuaadress["KdIDAadressiStaatus"] == kd_id_kehtiv, "IsID"].dropna().unique()
@@ -57,31 +60,31 @@ def add_invalid_residences(
 
     # Randomly choose the persons (avoid replacement)
     chosen_ids = random.sample(
-        list(kehtiv_ids), 
+        list(kehtiv_ids),
         k=min(person_count, len(kehtiv_ids))
     )
 
     # Get the full person rows we still need later in the loop
     selected_persons = df_isik.loc[df_isik["IsID"].isin(chosen_ids)].copy()
-    
+
     start_dok_id = df_dokumendid["DokID"].max() + 1 if len(df_dokumendid) > 0 else 1
     start_iadr_id = df_isikuaadress["IAdrID"].max() + 1 if len(df_isikuaadress) > 0 else 1
     start_idok_id = df_isikudokument["IDokID"].max() + 1 if len(df_isikudokument) > 0 else 1
-    
+
     dok_id_counter = start_dok_id
     iadr_id_counter = start_iadr_id
     idok_id_counter = start_idok_id
-    
+
     now = datetime.now()
-    
+
     new_isikuaadress_rows = []
     new_dokumendid_rows = []
     new_isikudokument_rows = []
-    
+
     for _, person_row in selected_persons.iterrows():
         is_id = person_row["IsID"]
         random_adr_id = df_aadress["AdrID"].dropna().sample(1).iloc[0]
-        
+
         # Create a new document record with additional fields
         doc_record = {
             "DokID": dok_id_counter,
@@ -116,14 +119,14 @@ def add_invalid_residences(
             "IsID": is_id
         }
         new_dokumendid_rows.append(doc_record)
-        
+
         # Generate a random start date for the new residence record
         start_date = datetime(2000, 1, 1)
         end_date = datetime(2023, 12, 31)
         delta = (end_date - start_date).days
         random_offset = random.randint(0, delta)
         iadr_kehtib_alates = start_date + timedelta(days=random_offset)
-        
+
         # Create a new residence address record with basic fields
         iadr_record = {
             "IAdrID": iadr_id_counter,
@@ -145,7 +148,7 @@ def add_invalid_residences(
             "KustutatiKpv": None
         }
         new_isikuaadress_rows.append(iadr_record)
-        
+
         # Create a new person-document bridging record with extra fields from person data
         idok_record = {
             "IDokID": idok_id_counter,
@@ -167,11 +170,11 @@ def add_invalid_residences(
             "KustutatiKpv": None
         }
         new_isikudokument_rows.append(idok_record)
-        
+
         dok_id_counter += 1
         iadr_id_counter += 1
         idok_id_counter += 1
-    
+
     if new_dokumendid_rows:
         new_docs_df = pd.DataFrame(new_dokumendid_rows).dropna(axis=1, how='all')
         df_dokumendid = pd.concat([df_dokumendid, new_docs_df], ignore_index=True)
@@ -184,7 +187,7 @@ def add_invalid_residences(
     if new_isikudokument_rows:
         new_person_doc_df = pd.DataFrame(new_isikudokument_rows).dropna(axis=1, how='all')
         df_isikudokument = pd.concat([df_isikudokument, new_person_doc_df], ignore_index=True)
-    
+
     for col in ["IAdrKehtibAlatesKpv", "IAdrKehtibKuniKpv",
                 "LoodiKpv", "MuudetiKpv", "KustutatiKpv"]:
         if col in df_isikuaadress.columns:

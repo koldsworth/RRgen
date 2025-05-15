@@ -2,17 +2,19 @@ import pandas as pd
 import random
 from datetime import datetime, timedelta
 
+
 def get_kdid_for_name(df_kod, short_name: str):
     rows = df_kod.loc[df_kod['KdLyhikeNimi'] == short_name, 'KdID']
     return rows.iloc[0] if len(rows) else None
 
+
 def make_driver_licenses_invalid_by_date(
-    df_dokumendid: pd.DataFrame,
-    df_kodifikaator: pd.DataFrame,
-    dok_liik_nimi: str = "JUHILUBA",
-    dok_staatus_nimi: str = "KEHTIV",
-    num_changes: int = 3,
-    seed: int = None
+        df_dokumendid: pd.DataFrame,
+        df_kodifikaator: pd.DataFrame,
+        dok_liik_nimi: str = "JUHILUBA",
+        dok_staatus_nimi: str = "KEHTIV",
+        num_changes: int = 3,
+        seed: int = None
 ) -> pd.DataFrame:
     """
     Finds driver's licenses with status 'KEHTIV' and sets their 'DokKehtivKuniKpv'
@@ -48,8 +50,8 @@ def make_driver_licenses_invalid_by_date(
 
     # Filter documents that are driver's licenses and have status KEHTIV
     mask = (
-        (df_dokumendid["KdIDDokumendiLiik"] == kd_id_juhiluba) &
-        (df_dokumendid["KdIDDokumendiStaatus"] == kd_id_kehtiv)
+            (df_dokumendid["KdIDDokumendiLiik"] == kd_id_juhiluba) &
+            (df_dokumendid["KdIDDokumendiStaatus"] == kd_id_kehtiv)
     )
     df_candidates = df_dokumendid[mask]
 
@@ -67,5 +69,6 @@ def make_driver_licenses_invalid_by_date(
         df_dokumendid.at[idx, "DokKehtivKuniKpv"] = past_date
         df_dokumendid.at[idx, "MuudetiKpv"] = now
 
-    print(f"Updated {len(df_to_update)} driver's licenses to have an expired 'DokKehtivKuniKpv' while keeping status KEHTIV.")
+    print(
+        f"Updated {len(df_to_update)} driver's licenses to have an expired 'DokKehtivKuniKpv' while keeping status KEHTIV.")
     return df_dokumendid

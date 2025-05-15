@@ -3,17 +3,18 @@ import pandas as pd
 from datetime import datetime, timedelta
 from src.generation.utils import adjust_timeline_for_death, get_kdid_for_name, random_date
 
+
 def generate_isikuaadress(
-    df_relationships: pd.DataFrame,
-    final_address_map: dict,
-    df_kodifikaator: pd.DataFrame,
-    possible_addresses: list,
-    min_address_count: int = 1,
-    max_address_count: int = 3,
-    earliest_date: datetime = datetime(2000, 1, 1),
-    latest_date: datetime = datetime(2020, 12, 31),
-    ensure_new_address: bool = True,
-    seed: int = None
+        df_relationships: pd.DataFrame,
+        final_address_map: dict,
+        df_kodifikaator: pd.DataFrame,
+        possible_addresses: list,
+        min_address_count: int = 1,
+        max_address_count: int = 3,
+        earliest_date: datetime = datetime(2000, 1, 1),
+        latest_date: datetime = datetime(2020, 12, 31),
+        ensure_new_address: bool = True,
+        seed: int = None
 ) -> pd.DataFrame:
     """
     Generate an address-history DataFrame for a group of people, grouped by 'Perekonna ID'.
@@ -24,7 +25,7 @@ def generate_isikuaadress(
     Logic:
       Optionally set random seed.
       1) For each family, derive earliest arrival (family_arrival) and latest departure (family_departure).
-      2) For adults, generate address periods (min..max_count). The last period is open (KuniKpv=None => KEHTIV).
+      2) For adults, generate address periods (min...max_count). The last period is open (KuniKpv=None => KEHTIV).
          All others have KuniKpv != None => KEHTETU. Link them with IAdrIDJargmine, DokIDLopuAlus.
          Then apply death-date truncation via adjust_timeline_for_death().
       3) For children, simply copy a chosen parent's timeline. Also apply death-date truncation.
@@ -258,7 +259,7 @@ def generate_isikuaadress(
                 if last_p["IAdrKehtibKuniKpv"] is None or last_p["IAdrKehtibKuniKpv"] > family_departure:
                     last_p["IAdrKehtibKuniKpv"] = family_departure
                     last_p["KdIDAadressiStaatus"] = get_kdid_for_name(df_kodifikaator, "KEHTETU")
-                    last_p["KdIDAadressiLiik"]    = get_kdid_for_name(df_kodifikaator, "ENDINE ELUKOHT")
+                    last_p["KdIDAadressiLiik"] = get_kdid_for_name(df_kodifikaator, "ENDINE ELUKOHT")
 
         # -------------------------------------------------------------------
         # 5) REMOVE INVALID (start_>end_) + RELINK
@@ -275,12 +276,12 @@ def generate_isikuaadress(
 
             # Re-link after removing invalid
             for i in range(len(fixed) - 1):
-                fixed[i]["IAdrIDJargmine"] = fixed[i+1]["IAdrID"]
-                fixed[i]["DokIDLopuAlus"]  = fixed[i+1]["DokIDAlus"]
+                fixed[i]["IAdrIDJargmine"] = fixed[i + 1]["IAdrID"]
+                fixed[i]["DokIDLopuAlus"] = fixed[i + 1]["DokIDAlus"]
 
             if fixed:
                 fixed[-1]["IAdrIDJargmine"] = None
-                fixed[-1]["DokIDLopuAlus"]  = None
+                fixed[-1]["DokIDLopuAlus"] = None
             return fixed
 
         for pid in group["IsID"]:
@@ -299,13 +300,17 @@ def generate_isikuaadress(
                 en_ = row_["IAdrKehtibKuniKpv"]
                 new_latest_date = latest_date
 
+                chance_delete = random.random() < 0.1
+                chance_update_closed = random.random() < 0.5
+                chance_update_open = random.random() < 0.3
+
                 # LoodiKpv in [earliest_date..st_]
                 if not st_ or st_ < earliest_date:
                     st_ = earliest_date
                 row_["LoodiKpv"] = random_date(earliest_date, st_)
 
-                # KustutatiKpv (10% chance) if the period has an end
-                if en_ is not None and random.random() < 0.1:
+                # KustutatiKpv if the period has an end
+                if en_ is not None and chance_delete:
                     # random date in [en_..latest_date]
                     row_["KustutatiKpv"] = random_date(en_, latest_date)
                     new_latest_date = row_["KustutatiKpv"]
@@ -315,13 +320,13 @@ def generate_isikuaadress(
                 # MuudetiKpv depends on whether end_ is set
                 if en_ is not None:
                     upper_ = max(en_, row_["LoodiKpv"])
-                    if upper_ < new_latest_date and random.random() < 0.5:
+                    if upper_ < new_latest_date and chance_update_closed:
                         row_["MuudetiKpv"] = random_date(upper_, new_latest_date)
                     else:
                         row_["MuudetiKpv"] = None
                 else:
-                    # open => 30% chance
-                    if random.random() < 0.3:
+                    # open -> 30% chance
+                    if chance_update_open:
                         row_["MuudetiKpv"] = random_date(row_["LoodiKpv"], new_latest_date)
                     else:
                         row_["MuudetiKpv"] = None
@@ -341,15 +346,15 @@ def generate_isikuaadress(
 
     df_history = pd.DataFrame(all_records)
 
-    id_cols     = ["IAdrID", "DokIDAlus", "IAdrIDJargmine", "DokIDLopuAlus"]
+    id_cols = ["IAdrID", "DokIDAlus", "IAdrIDJargmine", "DokIDLopuAlus"]
     pointer_cols = ["DokIDAlus", "IAdrIDJargmine", "DokIDLopuAlus"]
 
-    # --- 1. make sure the raw data are integers, not floats ---------------------
+    # Make sure the raw data are integers, not floats
     for col in id_cols:
         if col in df_history.columns:
-            df_history[col] = df_history[col].astype("Int64")        # nullable int
+            df_history[col] = df_history[col].astype("Int64")  # nullable int
 
-    # --- 2. build the map (after they’re integers!) ----------------------------
+    # Build the map (after their integers!)
     df_history = df_history.sort_values("IAdrID").reset_index(drop=True)
     id_map = {old_id: new_id for new_id, old_id in enumerate(df_history["IAdrID"], start=1)}
 

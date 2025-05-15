@@ -3,13 +3,20 @@ import pandas as pd
 from datetime import datetime, timedelta
 from src.generation.utils import random_date, get_education_for_age
 
+
 def generate_temp_relatsionships(
-    n_people: int = 10,
-    seed: int = None,
-    min_age_for_parenthood: int = 18,
-    death_probability: float = 0.1,
-    df_possible_aadresses: pd.DataFrame = None,
-    df_kd: pd.DataFrame = None
+        n_people: int = 10,
+        seed: int = None,
+        min_age_for_parenthood: int = 18,
+        death_probability: float = 0.1,
+        child_death_probability: float = 0.1,
+        non_ee_probability: float = 0.3,
+        leave_probability: float = 0.2,
+        share_address_probability: float = 0.8,
+        keep_parent_address_probability: float = 0.7,
+        as_id_assign_probability: float = 0.1,
+        df_possible_aadresses: pd.DataFrame = None,
+        df_kd: pd.DataFrame = None,
 ) -> pd.DataFrame:
     """
     Generate a random list of people (n_people) with relationships, addresses,
@@ -31,15 +38,15 @@ def generate_temp_relatsionships(
         8) Assign birthdates to children (<=17 years old),
         plus possible Surmaaeg with probability = death_probability/2.
         9) Assign 'Haridus' (education) by calling get_education_for_age(...) if df_kd is provided.
-        10) Assign 'Kodakondsus' (70% 'EE', 30% 'MUU'). 
-            For 'MUU', random arrival date (IsSaabusEesti), 20% also get IsLahkusEestist.
+        10) Assign 'Kodakondsus' (% chance 'EE', % chance 'MUU'). 
+            For 'MUU', random arrival date (IsSaabusEesti), % chance also get IsLahkusEestist.
         11) Use a BFS approach to determine 'Perekonna ID' for connected individuals 
             (partner -> children -> parents).
         12) Clear out addresses (Aadress) so we can assign them freshly.
-            Then assign addresses for married couples (80% share the same address).
+            Then assign addresses for married couples (% chance share the same address).
         13) For single adults with no address assigned, pick a random address.
         14) For children: if under 18, always take a parent's address; 
-            if 18 or older, 70% chance they keep a parent's address, else random.
+            if 18 or older, % chance they keep a parent's address, else random.
         15) Fill 'KOV' based on 'AkpIDTase2' from df_possible_aadresses, 
             handle arrival logic for children if parent arrived later, 
             and assign each adult a possible AsID (institution) with the stated logic.
@@ -92,11 +99,11 @@ def generate_temp_relatsionships(
         person = {
             "IsID": person_id,
             "Vanuse staatus": status,  # 'Täiskasvanu' or 'Laps'
-            "Suhteseis": None,        # Will be set if adult
+            "Suhteseis": None,  # Will be set if adult
             "Partneri ID": None,
             "Laps(ed)": [],
             "Vanem(ad)": [],
-            "Sugu": gender,          # 'MEES' or 'NAINE'
+            "Sugu": gender,  # 'MEES' or 'NAINE'
             "Sünniaeg": None,
             "Surmaaeg": None,
             "Haridus": None,
@@ -177,27 +184,27 @@ def generate_temp_relatsionships(
     earliest_adult = now.replace(year=now.year - 100)
     latest_adult = now.replace(year=now.year - 18)
 
-    for ad in adults:
-        birth_date = random_date(earliest_adult, latest_adult)
-        ad["Sünniaeg"] = birth_date
-        if random.random() < death_probability:
-            ad["Surmaaeg"] = random_date(birth_date, now)
+    chance_adult_death_all = [random.random() < death_probability for _ in range(len(adults))]
+
+    for idx, ad in enumerate(adults):
+        bdate = random_date(earliest_adult, latest_adult)
+        ad["Sünniaeg"] = bdate
+        if chance_adult_death_all[idx]:
+            ad["Surmaaeg"] = random_date(bdate, now)
 
     # -------------------------------------------------------------------
     # 8) Assign birthdates & deathdates for children
     # -------------------------------------------------------------------
-    min_age_days = int(min_age_for_parenthood * 365.25)          # ≈ 18 y
+    min_age_days = int(min_age_for_parenthood * 365.25)  # ~ 18 y
+    chance_child_death_all = [random.random() < child_death_probability for _ in range(len(children))]
 
-    for child in children:
+
+    for idx, child in enumerate(children):
         parents = child["Vanem(ad)"] or []
-        parents_bd = [
-            p["Sünniaeg"]
-            for p in data_list
-            if p["IsID"] in parents and p["Sünniaeg"] is not None
-        ]
+        parents_bd = [p["Sünniaeg"] for p in data_list if p["IsID"] in parents and p["Sünniaeg"]]
 
         if parents_bd:
-            # Child must be ≥ 18 y younger than *each* parent
+            # Child must be ≥ 18 y younger than each parent
             youngest_allowed_bd = max(bd + timedelta(days=min_age_days) for bd in parents_bd)
 
             # we still want the kid to be ≤ 1 y old today
@@ -207,14 +214,16 @@ def generate_temp_relatsionships(
             if youngest_allowed_bd > latest_allowed_bd:
                 latest_allowed_bd = youngest_allowed_bd
 
-            child["Sünniaeg"] = random_date(youngest_allowed_bd, latest_allowed_bd)
+            child_bd = random_date(youngest_allowed_bd, latest_allowed_bd)
         else:
-            # no or unknown parents ⇒ random 0-17-year-old
-            child["Sünniaeg"] = now - timedelta(days=365 * random.randint(1, 17))
+            # no or unknown parents -> random 0-17-year-old
+            child_bd = now - timedelta(days=365 * random.randint(1, 17))
+        
+        child["Sünniaeg"] = child_bd
 
         # optional death date (half the adult probability)
-        if random.random() < (death_probability / 2.0):
-            child["Surmaaeg"] = random_date(child["Sünniaeg"], now)
+        if chance_child_death_all[idx]:
+            child["Surmaaeg"] = random_date(child_bd, now)
 
     # -------------------------------------------------------------------
     # 9) Education assignment via get_education_for_age
@@ -224,24 +233,22 @@ def generate_temp_relatsionships(
         bd = p["Sünniaeg"]
         if bd:
             age_years = (now - bd).days // 365
-            p["Haridus"] = get_education_for_age(age_years, df_kd)  # or local logic
-        else:
-            p["Haridus"] = None
+            p["Haridus"] = get_education_for_age(age_years, df_kd)
 
     # -------------------------------------------------------------------
     # 10) Kodakondsus & arrival/departure logic
     # -------------------------------------------------------------------
-    for p in data_list:
-        if random.random() < 0.7:
-            p["Kodakondsus"] = "EE"
-        else:
-            p["Kodakondsus"] = "MUU"
+    chance_non_ee_all = [random.random() < non_ee_probability for _ in range(len(data_list))]
+    chance_leave_all = [random.random() < leave_probability for _ in range(len(data_list))]
 
-        if p["Kodakondsus"] != "EE" and p["Sünniaeg"]:
+    for idx, p in enumerate(data_list):
+        non_ee = chance_non_ee_all[idx]
+        p["Kodakondsus"] = "MUU" if non_ee else "EE"
+
+        if non_ee and p["Sünniaeg"]:
             arrival = random_date(p["Sünniaeg"], now)
             p["IsSaabusEesti"] = arrival
-            # 20% chance to leave
-            if random.random() < 0.2:
+            if chance_leave_all[idx]:
                 p["IsLahkusEestist"] = random_date(arrival, now)
 
     # -------------------------------------------------------------------
@@ -287,23 +294,18 @@ def generate_temp_relatsionships(
     df_people["Aadress"] = None
 
     # Build a simplified list of couples as (id1, id2) from the earlier 'couples' structure
-    real_couples = []
-    for (ad1, ad2) in couples:
-        real_couples.append((ad1["IsID"], ad2["IsID"]))
+    real_couples = [(c[0]["IsID"], c[1]["IsID"]) for c in couples]
+    chance_share_address_couple = [random.random() < share_address_probability for _ in real_couples]
 
     # Married couples share addresses
-    for (id1, id2) in real_couples:
-        addr1 = df_people.loc[df_people["IsID"] == id1, "Aadress"].values[0]
-        addr2 = df_people.loc[df_people["IsID"] == id2, "Aadress"].values[0]
-        if pd.isnull(addr1) and pd.isnull(addr2):
-            # pick a random address
-            chosen_address = random.choice(possible_addresses)
-            df_people.loc[df_people["IsID"] == id1, "Aadress"] = chosen_address
-            # 80% chance spouse uses same address
-            if random.random() < 0.8:
-                df_people.loc[df_people["IsID"] == id2, "Aadress"] = chosen_address
-            else:
-                df_people.loc[df_people["IsID"] == id2, "Aadress"] = random.choice(possible_addresses)
+    for idx, (id1, id2) in enumerate(real_couples):
+        shared = chance_share_address_couple[idx]
+        addr1 = random.choice(possible_addresses)
+        df_people.loc[df_people["IsID"] == id1, "Aadress"] = addr1
+        if shared:
+            df_people.loc[df_people["IsID"] == id2, "Aadress"] = addr1
+        else:
+            df_people.loc[df_people["IsID"] == id2, "Aadress"] = random.choice(possible_addresses)
 
     # Assign random addresses to single adults with no address
     for idx, row_ in df_people.iterrows():
@@ -311,28 +313,22 @@ def generate_temp_relatsionships(
             df_people.at[idx, "Aadress"] = random.choice(possible_addresses)
 
     # Children address logic
-    for idx, row_ in df_people.iterrows():
-        if row_["Vanuse staatus"] == "Laps":
-            birth_date = row_["Sünniaeg"]
-            age_years = 0
-            if pd.notnull(birth_date):
-                age_years = (now - birth_date).days // 365
+    chance_child_keep_parent_addr = [random.random() < keep_parent_address_probability for _ in range(len(df_people))]
 
-            parents_list = row_["Vanem(ad)"]
-            if parents_list:
-                chosen_parent_id = random.choice(parents_list)
+    for idx, row in df_people.iterrows():
+        if row["Vanuse staatus"] == "Laps":
+            birth = row["Sünniaeg"]
+            age_years = (now - birth).days // 365 if pd.notnull(birth) else 0
+            parents = row["Vanem(ad)"]
+            if parents:
+                chosen_parent_id = random.choice(parents)
                 parent_addr = df_people.loc[df_people["IsID"] == chosen_parent_id, "Aadress"].values[0]
                 if pd.isnull(parent_addr):
                     parent_addr = random.choice(possible_addresses)
-
-                # If < 18, always parent's address; if >= 18, 70% parent's address
-                if age_years < 18:
+                if age_years < 18 or chance_child_keep_parent_addr[idx]:
                     df_people.at[idx, "Aadress"] = parent_addr
                 else:
-                    if random.random() < 0.7:
-                        df_people.at[idx, "Aadress"] = parent_addr
-                    else:
-                        df_people.at[idx, "Aadress"] = random.choice(possible_addresses)
+                    df_people.at[idx, "Aadress"] = random.choice(possible_addresses)
             else:
                 # no parents => just pick a random address
                 df_people.at[idx, "Aadress"] = random.choice(possible_addresses)
@@ -371,8 +367,8 @@ def generate_temp_relatsionships(
                                 if earliest_ < now:
                                     new_saabumine = random_date(earliest_, now)
                                     df_people.at[idx, "IsSaabusEesti"] = new_saabumine
-                                    # 20% chance child also leaves
-                                    if random.random() < 0.2:
+                                    # A chance child also leaves
+                                    if leave_probability:
                                         df_people.at[idx, "IsLahkusEestist"] = random_date(new_saabumine, now)
                             break
 
@@ -394,9 +390,10 @@ def generate_temp_relatsionships(
     # Get asutus IDs
     asutus_ids = list(range(1, 51))
 
-    # Assign AsID to all adults with 10% probability
+    # Assign AsID to all adults with a probability
+    chance_asid = [random.random() < as_id_assign_probability for _ in adult_indexes]
     for idx in adult_indexes:
-        if random.random() < 0.1:
+        if chance_asid:
             df_people.at[idx, "AsID"] = random.choice(asutus_ids)
 
     return df_people

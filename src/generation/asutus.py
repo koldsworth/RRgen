@@ -5,12 +5,12 @@ from src.generation.utils import random_date, get_kdid_for_name
 
 
 def generate_isik_asutus(
-    ias_id: int,
-    is_id: int,
-    as_id: int,
-    df_kodifikaator: pd.DataFrame,
-    earliest_date: datetime = datetime(1900, 1, 1),
-    seed: int = None
+        ias_id: int,
+        is_id: int,
+        as_id: int,
+        df_kodifikaator: pd.DataFrame,
+        earliest_date: datetime = datetime(1900, 1, 1),
+        seed: int = None
 ) -> dict:
     """
     Create a single record (dictionary) representing the IsikAsutus relationship.
@@ -19,17 +19,19 @@ def generate_isik_asutus(
 
     Logic:
       1) Generate a random 'IAsAlgusKpv' between earliest_date and 'now'.
-      2) With 99% probability, assign 'IAsKinniKpv' to a date between 'IAsAlgusKpv' and up to 7 days later (but not beyond 'now').
+      2) With 99% probability, assign 'IAsKinniKpv' to a date between 'IAsAlgusKpv'
+         and up to 7 days later (but not beyond 'now').
       3) Randomly determine the user’s status:
          - 80% chance => 'KEHTIV'
          - 20% chance => 'KEHTETU'
       4) Set 'IAsKasutajaNimi' and 'IAsKasutajaSalasona' (simple placeholders).
-      5) 50% chance to have 'MuudetiKpv' in [LoodiKpv..now].
-      6) 5% chance of 'KustutatiKpv' in [IAsAlgusKpv..now], which overrides status to 'KEHTETU'.
+      5) 50% chance to have 'MuudetiKpv' in [LoodiKpv...now].
+      6) 5% chance of 'KustutatiKpv' in [IAsAlgusKpv...now], which overrides status to 'KEHTETU'.
 
     :param ias_id: Unique integer to assign as 'IAsID'.
     :param is_id: Identifier of the person (IsID).
     :param as_id: Identifier of the institution (AsID).
+    :param df_kodifikaator: DataFrame
     :param earliest_date: The earliest possible date for any assigned date field.
     :param seed: Random seed for reproducibility.
     :return: A dictionary of columns for the IsikAsutus record.
@@ -40,7 +42,7 @@ def generate_isik_asutus(
 
     now = datetime.now()
 
-    # 1) IAsAlgusKpv = random date in [earliest_date..now]
+    # 1) IAsAlgusKpv = random date in [earliest_date...now]
     ias_algus_kpv = random_date(earliest_date, now)
 
     # 2) 99% chance to set IAsKinniKpv up to 7 days after ias_algus_kpv (but not beyond now)
@@ -69,7 +71,7 @@ def generate_isik_asutus(
     # LoodiKpv is a date in [earliest_date..ias_algus_kpv]
     loodi_kpv = random_date(earliest_date, ias_algus_kpv)
 
-    # 5) 50% chance for MuudetiKpv in [loodi_kpv..now]
+    # 5) 50% chance for MuudetiKpv in [loodi_kpv...now]
     if random.random() < 0.5:
         muudeti_kpv = random_date(loodi_kpv, now)
     else:
@@ -109,10 +111,10 @@ def generate_isik_asutus(
 
 
 def generate_asutus(
-    df: pd.DataFrame,
-    df_kodifikaator: pd.DataFrame,
-    seed: int = None,
-    earliest_date: datetime = datetime(1980, 1, 1)
+        df: pd.DataFrame,
+        df_kodifikaator: pd.DataFrame,
+        seed: int = None,
+        earliest_date: datetime = datetime(1980, 1, 1)
 ) -> pd.DataFrame:
     """
     Generate a DataFrame of institution ('Asutus') records from an existing DataFrame 'df'
@@ -121,11 +123,11 @@ def generate_asutus(
 
     Logic in full:
       1) For each row in 'df', generate:
-         - AsAlguseKpv (random in [earliest_date..now])
-         - AsLopuKpv (~20% chance), random in [AsAlguseKpv..now]
-         - LoodiKpv (random in [earliest_date..AsAlguseKpv])
-         - MuudetiKpv (~50% chance), random in [LoodiKpv..now]
-         - KustutatiKpv (~5% chance), but only if there's an AsLopuKpv,
+         - AsAlguseKpv random in [earliest_date...now]
+         - AsLopuKpv random in [AsAlguseKpv...now]
+         - LoodiKpv random in [earliest_date...AsAlguseKpv]
+         - MuudetiKpv random in [LoodiKpv...now]
+         - KustutatiKpv, but only if there's an AsLopuKpv,
            in which case we set KustutatiKpv = AsLopuKpv
       2) If 'df.loc[i, "Staatus"]' is 'Registrisse kantud', we mark 'KdIDStaatus' as 'KEHTIV',
          otherwise 'KEHTETU'.
@@ -135,6 +137,8 @@ def generate_asutus(
     :param df: Input DataFrame with institution data, typically read from an Excel file.
                It should include columns such as:
                ['Nimi', 'Täiendav nimi', 'Staatus', 'Registrikood', 'Aadress'].
+    :param df_kodifikaator: DataFrame with code references.
+                         E.g., used by get_kdid_for_name for 'ELUS','SURNUD','REGISTRIS','ARHIIVIS'.
     :param seed: Random seed for reproducibility.
     :param earliest_date: The earliest possible date for any date fields assigned in this function.
     :return: A DataFrame with columns for the 'Asutus' table.
@@ -142,6 +146,10 @@ def generate_asutus(
 
     if seed is not None:
         random.seed(seed)
+
+    chance_lopp_all = [random.random() < 0.2 for _ in range(len(df))]
+    chance_muudeti_all = [random.random() < 0.5 for _ in range(len(df))]
+    chance_kustutati_all = [random.random() < 0.05 for _ in range(len(df))]
 
     now = datetime.now()
     data = []
@@ -152,31 +160,25 @@ def generate_asutus(
         # 1) AsAlguseKpv
         as_alguse_kpv = random_date(earliest_date, now)
 
-        # ~20% chance of AsLopuKpv
-        as_lopu_kpv = None
-        if random.random() < 0.2:
-            as_lopu_kpv = random_date(as_alguse_kpv, now)
+        # Chance of AsLopuKpv
+        as_lopu_kpv = random_date(as_alguse_kpv, now) if chance_lopp_all[i] else None
 
         # LoodiKpv in [earliest_date..as_alguse_kpv]
         loodi_kpv = random_date(earliest_date, as_alguse_kpv)
 
-        # ~50% chance of MuudetiKpv
-        if random.random() < 0.5:
-            muudeti_kpv = random_date(loodi_kpv, now)
-        else:
-            muudeti_kpv = None
+        # Chance of MuudetiKpv
+        muudeti_kpv = random_date(loodi_kpv, now) if chance_muudeti_all[i] else None
 
-        # ~5% chance of KustutatiKpv, but only if we have AsLopuKpv
-        if as_lopu_kpv is not None and random.random() < 0.05:
-            kustutati_kpv = as_lopu_kpv
-        else:
-            kustutati_kpv = None
+        # Chance of KustutatiKpv, but only if we have AsLopuKpv
+        kustutati_kpv = as_lopu_kpv if as_lopu_kpv is not None and chance_kustutati_all[i] else None
 
         # Basic contact info
         kontakt = f"info@asutus{i}.ee"
 
         # Random institution ID from kodifikaator
-        kd_id_asutuse_liik = random.choice(df_kodifikaator.loc[df_kodifikaator['KdKodifikaatoriKood'] == 10, 'KdID'].tolist())
+        kd_id_asutuse_liik = random.choice(
+            df_kodifikaator.loc[df_kodifikaator['KdKodifikaatoriKood'] == 10, 'KdID'].tolist()
+        )
 
         # Example code for 'AsAsutuseKood' as a random integer
         as_asutuse_kood = f"AS-{random.randint(1000, 9999)}"
@@ -200,11 +202,11 @@ def generate_asutus(
 
         # Build the record
         record = {
-            "AsID": i + 1,                      # sequential ID
-            "AsAlguseKpv": as_alguse_kpv,       # institution start date
-            "AsLopuKpv": as_lopu_kpv,           # optional end date
-            "AsKontakt": kontakt,               # contact info
-            "AsRegNumber": row['Registrikood'], # registration code
+            "AsID": i + 1,  # sequential ID
+            "AsAlguseKpv": as_alguse_kpv,  # institution start date
+            "AsLopuKpv": as_lopu_kpv,  # optional end date
+            "AsKontakt": kontakt,  # contact info
+            "AsRegNumber": row['Registrikood'],  # registration code
             "KdIDAsutuseLiik": kd_id_asutuse_liik,
             "AsLyhiNimi": row['Nimi'],
             "AsPikkNimi": as_pikk_nimi,
@@ -228,6 +230,7 @@ def generate_asutus(
         data.append(record)
 
     return pd.DataFrame(data)
+
 
 def build_isik_asutus(df, df_kodifikaator):
     """

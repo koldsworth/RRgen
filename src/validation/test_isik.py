@@ -42,6 +42,7 @@ _FK_COLS = [
     "KdIDPohjus",
 ]
 
+
 # ---------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------
@@ -50,6 +51,7 @@ _FK_COLS = [
 def isik_df() -> pd.DataFrame:
     """Load 06_isik.csv once for the module."""
     return pd.read_csv(_OUTPUT_FILE, parse_dates=_DATE_COLS, low_memory=False)
+
 
 # ---------------------------------------------------------------------
 # Generic constraints (PK, FK, dates)
@@ -76,13 +78,16 @@ def test_temporal_coherence(isik_df: pd.DataFrame) -> None:
     """If MuudetiKpv exists it must not precede LoodiKpv."""
     assert_temporal_order(isik_df, "LoodiKpv", "MuudetiKpv")
 
+
 # ---------------------------------------------------------------------
 # Business‑specific rules
 # ---------------------------------------------------------------------
 
 def test_surmaaeg_vs_status(isik_df: pd.DataFrame, kodifikaator_df: pd.DataFrame) -> None:
     """Status fields follow the SURNUD/ARHIIVIS vs ELUS/REGISTRIS rule."""
-    kd = lambda name: get_kdid_for_name(kodifikaator_df, name)
+    def kd(name: str) -> float:
+        kod = get_kdid_for_name(kodifikaator_df, name)
+        return kod
 
     kd_surnud = kd("SURNUD")
     kd_elus = kd("ELUS")
@@ -96,16 +101,16 @@ def test_surmaaeg_vs_status(isik_df: pd.DataFrame, kodifikaator_df: pd.DataFrame
     living = isik_df[isik_df["IsSurmaaeg"].isna()]
 
     assert (
-        (deceased["KdIDIsikuStaatus"] == kd_surnud)
-    ).all() and (
-        (deceased["KdIDKirjeStaatus"] == kd_arhiivis).all()
-    ), "Deceased persons must be SURNUD/ARHIIVIS"
+               (deceased["KdIDIsikuStaatus"] == kd_surnud)
+           ).all() and (
+               (deceased["KdIDKirjeStaatus"] == kd_arhiivis).all()
+           ), "Deceased persons must be SURNUD/ARHIIVIS"
 
     assert (
-        (living["KdIDIsikuStaatus"] == kd_elus).all()
-    ) and (
-        (living["KdIDKirjeStaatus"] == kd_registris).all()
-    ), "Living persons must be ELUS/REGISTRIS"
+               (living["KdIDIsikuStaatus"] == kd_elus).all()
+           ) and (
+               (living["KdIDKirjeStaatus"] == kd_registris).all()
+           ), "Living persons must be ELUS/REGISTRIS"
 
 
 def test_isikukood_format(isik_df: pd.DataFrame) -> None:
@@ -115,7 +120,7 @@ def test_isikukood_format(isik_df: pd.DataFrame) -> None:
     assert isik_df["IsIsikukood"].notna().all(), "IsIsikukood NULL values found"
 
     bad = isik_df.loc[~isik_df["IsIsikukood"].astype(str).str.match(pattern)]
-    assert bad.empty, f"Invalid IsIsikukood format: {bad[['IsID','IsIsikukood']]}"
+    assert bad.empty, f"Invalid IsIsikukood format: {bad[['IsID', 'IsIsikukood']]}"
 
 
 def test_kov_fk_when_arrival(isik_df: pd.DataFrame) -> None:

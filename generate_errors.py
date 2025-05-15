@@ -1,5 +1,4 @@
 """
-CLI wrapper – nothing more than argument parsing and dispatch.
 Usage examples
 
 $ python generate_errors.py # run all cases
@@ -9,7 +8,8 @@ from __future__ import annotations
 import argparse
 from src.error_generation.main import run
 
-def _parse_args() -> list[int] | None:
+
+def _parse_args():
     p = argparse.ArgumentParser(description="Inject deliberate data errors.")
     p.add_argument(
         "--tests", "-t",
@@ -23,6 +23,7 @@ def _parse_args() -> list[int] | None:
         return [int(x) for x in ns.tests.split(",")]
     except ValueError as exc:
         raise SystemExit("--tests must be integers, e.g. 1,2,4") from exc
+
 
 if __name__ == "__main__":
     run(_parse_args())

@@ -1,6 +1,6 @@
 import random
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import timedelta
 from src.generation.utils import get_kdid_for_name, random_date
 
 
@@ -18,13 +18,14 @@ def generate_aadress(
 
     Logic:
       1) Randomly sample 'num_records' rows from the input DataFrame.
-      2) Assign a status code (`KdID`) based on the address status (`AADR_OLEK`).
+      2) Assign a status code ('KdID') based on the address status ('AADR_OLEK').
       3) Generate additional fields, such as postal codes and country IDs.
       4) Format the data into a structured DataFrame.
 
     :param df: The source DataFrame containing address data (e.g., loaded from 'aadress.csv').
                 Expected columns: 'ADR_ID', 'AADR_OLEK', 'TASE1_KOOD', 'TAISAADRESS', etc.
-    :param df_kodifikaator: A lookup table for status codes (KdID) and country codes.
+    :param df_kodifikaator: DataFrame with code references.
+                         E.g., used by get_kdid_for_name for 'ELUS','SURNUD','REGISTRIS','ARHIIVIS'.
     :param num_records: default=10, the number of address records to generate.
     :param seed: Seed for reproducibility in random sampling.
     :return: A new DataFrame containing the generated address records.
@@ -40,7 +41,7 @@ def generate_aadress(
         None: get_kdid_for_name(df_kodifikaator, 'KEHTETU')  # Default case
     }
 
-    # Select `num_records` random addresses efficiently
+    # Select 'num_records' random addresses efficiently
     sampled_df = df.sample(n=num_records, replace=True).copy()
 
     # Ensure necessary columns exist before mapping
@@ -130,7 +131,7 @@ def generate_aadress_komponent(
     if seed is not None:
         random.seed(seed)
 
-    # Make a copy to avoid `SettingWithCopyWarning`
+    # Make a copy to avoid 'SettingWithCopyWarning'
     df = df.copy()
 
     # Convert 'KEHTIV' and 'KEHTETU' to datetime (vectorized)
@@ -142,7 +143,9 @@ def generate_aadress_komponent(
     kd_kehtetu = get_kdid_for_name(df_kodifikaator, 'KEHTETU')
 
     # Generate creation dates efficiently
-    df["LoodiKpv"] = df["KEHTIV"].apply(lambda x: random_date(x - timedelta(days=365 * 10), x) if pd.notnull(x) else None)
+    df["LoodiKpv"] = df["KEHTIV"].apply(
+        lambda x: random_date(x - timedelta(days=365 * 10), x) if pd.notnull(x) else None
+    )
 
     # Assign status IDs efficiently
     df["KdIDStaatus"] = df["KEHTETU"].apply(lambda x: kd_kehtetu if pd.notnull(x) else kd_kehtiv)

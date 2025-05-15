@@ -1,29 +1,34 @@
-import sys
+"""
+Usage examples
+
+$ python run_validation_tests.py  # run all validation tests
+$ python run_validation_tests.py --path src/validation/test_isikuaadress.py  # specific file
+"""
+from __future__ import annotations
+import argparse
 import os
 import subprocess
+import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
+def _parse_args():
+    p = argparse.ArgumentParser(description="Run validation tests using pytest.")
+    p.add_argument(
         "--path",
         default="src/validation",
         help="Path to folder or test file(s) to run with pytest"
     )
-    
-    # Pytest outputs
-    parser.add_argument(
+    p.add_argument(
         "--capture",
         choices=["no", "sys", "fd"],
         default="no",
         help="How to capture output (default: no)"
     )
+    return p.parse_args()
 
-    args = parser.parse_args()
 
+if __name__ == "__main__":
+    args = _parse_args()
     test_path = os.path.abspath(args.path)
     print(f"Running pytest on: {test_path}\n")
 

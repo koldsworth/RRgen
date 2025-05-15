@@ -7,7 +7,6 @@ Only business‑specific rules live here; common validations reuse
 from __future__ import annotations
 
 from pathlib import Path
-from datetime import datetime
 
 import pandas as pd
 import pytest
@@ -16,7 +15,6 @@ from src.validation.helpers import (
     assert_unique_not_null,
     assert_fk,
     assert_temporal_order,
-    assert_single_active,
 )
 from src.generation.utils import get_kdid_for_name
 
@@ -35,6 +33,7 @@ DATE_COLS = [
     "KustutatiKpv",
 ]
 
+
 @pytest.fixture(scope="module")
 def kodakondsus_df() -> pd.DataFrame:
     return pd.read_csv(
@@ -42,6 +41,7 @@ def kodakondsus_df() -> pd.DataFrame:
         parse_dates=DATE_COLS,
         encoding="ISO-8859-1",
     )
+
 
 @pytest.fixture(scope="module")
 def dokument_df() -> pd.DataFrame:
@@ -54,6 +54,7 @@ def dokument_df() -> pd.DataFrame:
         low_memory=False
     )
 
+
 @pytest.fixture(scope="module")
 def isik_df() -> pd.DataFrame:
     return pd.read_csv(
@@ -61,6 +62,7 @@ def isik_df() -> pd.DataFrame:
         usecols=["IsID"],
         encoding="ISO-8859-1",
     )
+
 
 # ----------------------------------------------------------------------------
 # Generic validations (PK, FK)
@@ -75,6 +77,7 @@ def test_fk_isid(kodakondsus_df, isik_df):
     """'IsID' values reference the person table."""
     assert_fk(kodakondsus_df, "IsID", isik_df, ref_col="IsID")
 
+
 # ----------------------------------------------------------------------------
 # Business‑specific rules
 # ----------------------------------------------------------------------------
@@ -87,7 +90,7 @@ def test_status_matches_end_or_delete(kodakondsus_df, kodifikaator_df):
 
     ended_or_deleted = kodakondsus_df[
         kodakondsus_df["KodKehtibKuni"].notna() | kodakondsus_df["KustutatiKpv"].notna()
-    ]
+        ]
     mismatch = ended_or_deleted[ended_or_deleted["KdIDStaatus"] != kd_kehtetu]
     assert mismatch.empty, (
         "Rows with an end date or deletion must have status=KEHTETU, found mismatches:\n"
@@ -109,8 +112,10 @@ def test_document_reference_order(kodakondsus_df):
     both = kodakondsus_df[kodakondsus_df["DokIDLopuAlus"].notna()]
     bad = both[both["DokIDLopuAlus"] < both["DokIDAlguseAlus"]]
     assert bad.empty, (
-        "Expected DokIDLopuAlus to be ≥ DokIDAlguseAlus, found:\n" f"{bad[['KodID','DokIDAlguseAlus','DokIDLopuAlus']]}"
+        "Expected DokIDLopuAlus to be ≥ DokIDAlguseAlus, found:\n" 
+        f"{bad[['KodID', 'DokIDAlguseAlus', 'DokIDLopuAlus']]}"
     )
+
 
 def test_no_parallel_unknown_and_country_citizenship(
         kodakondsus_df, dokument_df, kodifikaator_df):
@@ -134,7 +139,7 @@ def test_no_parallel_unknown_and_country_citizenship(
     active_cit = kodakondsus_df[
         (kodakondsus_df["KdIDStaatus"] == kd_kehtiv)
         & (kodakondsus_df["KodKehtibKuni"].isnull())
-    ].copy()
+        ].copy()
 
     # bring in the document type that opened the period
     active_cit = active_cit.merge(
@@ -148,7 +153,7 @@ def test_no_parallel_unknown_and_country_citizenship(
     # treat it as an unknown (MÄÄRATLEMATA) document:
     active_cit["KdIDDokumendiLiik"].fillna(kd_id_maaratlemata_doc, inplace=True)
 
-    #scan person-by-person
+    # scan person-by-person
     offenders = []
     for is_id, grp in active_cit.groupby("IsID"):
         has_unknown = (grp["KdIDDokumendiLiik"] == kd_id_maaratlemata_doc).any()

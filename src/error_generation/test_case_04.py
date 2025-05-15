@@ -2,10 +2,12 @@ import random
 import pandas as pd
 from datetime import datetime, timedelta
 
+
 def get_kdid_for_name(df_kod, short_name: str):
     """Retrieve KdID for a given short name from the codebook DataFrame."""
     rows = df_kod.loc[df_kod['KdLyhikeNimi'] == short_name, 'KdID']
     return rows.iloc[0] if len(rows) else None
+
 
 def random_date(start: datetime, end: datetime) -> datetime:
     """Generate a random date between start and end."""
@@ -13,15 +15,16 @@ def random_date(start: datetime, end: datetime) -> datetime:
     random_days = random.randint(0, delta.days)
     return start + timedelta(days=random_days)
 
+
 def add_invalid_citizenship(
-    df_citizenship: pd.DataFrame,
-    df_documents: pd.DataFrame,
-    df_person_document: pd.DataFrame,
-    df_person: pd.DataFrame,
-    df_codebook: pd.DataFrame,
-    doc_type: str = "MÄÄRATLEMATA",
-    person_count: int = 5,
-    seed: int = None
+        df_citizenship: pd.DataFrame,
+        df_documents: pd.DataFrame,
+        df_person_document: pd.DataFrame,
+        df_person: pd.DataFrame,
+        df_codebook: pd.DataFrame,
+        doc_type: str = "MÄÄRATLEMATA",
+        person_count: int = 5,
+        seed: int = None
 ) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     """
     Creates an invalid citizenship record for selected persons by:
@@ -43,32 +46,32 @@ def add_invalid_citizenship(
     """
     if seed is not None:
         random.seed(seed)
-    
+
     # Retrieve necessary KdIDs from the codebook
     kd_id_valid = get_kdid_for_name(df_codebook, "KEHTIV")
     kd_id_citizenship_doc = get_kdid_for_name(df_codebook, doc_type)
     kd_id_country_EE = get_kdid_for_name(df_codebook, "EE")
-    
+
     selected_persons = df_person.sample(n=person_count, replace=False)
-    
+
     start_doc_id = df_documents["DokID"].max() + 1 if len(df_documents) > 0 else 1
     start_citizenship_id = df_citizenship["KodID"].max() + 1 if len(df_citizenship) > 0 else 1
     start_person_document_id = df_person_document["IDokID"].max() + 1 if len(df_person_document) > 0 else 1
-    
+
     doc_id_counter = start_doc_id
     citizenship_id_counter = start_citizenship_id
     person_document_id_counter = start_person_document_id
-    
+
     now = datetime.now()
     earliest_date = datetime(1950, 1, 1)
-    
+
     new_documents_rows = []
     new_citizenship_rows = []
     new_person_document_rows = []
-    
+
     for _, person_row in selected_persons.iterrows():
         is_id = person_row["IsID"]
-        
+
         # Create a new document record with additional fields
         doc_record = {
             "DokID": doc_id_counter,
@@ -100,10 +103,10 @@ def add_invalid_citizenship(
             "LRProtseduurKirjeldus": None,
             "DokSalastatud": None,
             "KdIDDokAlguseAlus": None,
-            "IsID": is_id #in the final df_documents it will be dropped
+            "IsID": is_id  # in the final df_documents it will be dropped
         }
         new_documents_rows.append(doc_record)
-        
+
         # Create a new citizenship record (expired validity)
         valid_from = random_date(earliest_date, now - timedelta(days=60))
         citizenship_record = {
@@ -122,7 +125,7 @@ def add_invalid_citizenship(
             "KustutatiKpv": None
         }
         new_citizenship_rows.append(citizenship_record)
-        
+
         # --- Create a new person–document bridging record ---
         person_document_record = {
             "IDokID": person_document_id_counter,
@@ -144,11 +147,11 @@ def add_invalid_citizenship(
             "KustutatiKpv": None
         }
         new_person_document_rows.append(person_document_record)
-        
+
         doc_id_counter += 1
         citizenship_id_counter += 1
         person_document_id_counter += 1
-    
+
     if new_documents_rows:
         new_docs_df = pd.DataFrame(new_documents_rows).dropna(axis=1, how='all')
         df_documents = pd.concat([df_documents, new_docs_df], ignore_index=True)
@@ -161,5 +164,5 @@ def add_invalid_citizenship(
     if new_person_document_rows:
         new_person_doc_df = pd.DataFrame(new_person_document_rows).dropna(axis=1, how='all')
         df_person_document = pd.concat([df_person_document, new_person_doc_df], ignore_index=True)
-    
+
     return df_citizenship, df_documents, df_person_document

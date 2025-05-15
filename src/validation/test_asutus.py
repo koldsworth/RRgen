@@ -114,7 +114,6 @@ def test_isik_asutus_dates(isik_asutus_df: pd.DataFrame):
     assert_temporal_order(isik_asutus_df, "LoodiKpv", "IAsAlgusKpv", allow_equal=True)
 
 
-
 def test_isik_asutus_deleted_kehtetu(
     isik_asutus_df: pd.DataFrame, kodifikaator_df: pd.DataFrame
 ):

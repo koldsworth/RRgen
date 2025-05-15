@@ -10,6 +10,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+
 # ------------------------------------------------------------------
 # FK / PK helpers
 # ------------------------------------------------------------------
@@ -23,12 +24,12 @@ def assert_unique_not_null(df: pd.DataFrame, col: str, *, label: str | None = No
 
 
 def assert_fk(
-    df: pd.DataFrame,
-    col: str,
-    ref_df: pd.DataFrame,
-    ref_col: str = "KdID",
-    *,
-    msg: str | None = None,
+        df: pd.DataFrame,
+        col: str,
+        ref_df: pd.DataFrame,
+        ref_col: str = "KdID",
+        *,
+        msg: str | None = None,
 ):
     """Foreign‑key check: every value in df[col] must exist in ref_df[ref_col]."""
     used = set(df[col].dropna())
@@ -36,33 +37,35 @@ def assert_fk(
     diff = used - valid
     assert not diff, msg or f"{col} unknown codes: {diff}"
 
+
 # ------------------------------------------------------------------
 # Temporal helpers
 # ------------------------------------------------------------------
 
 def assert_temporal_order(
-    df: pd.DataFrame,
-    earlier: str,
-    later: str,
-    *,
-    allow_equal: bool = True,
-    msg: str | None = None,
+        df: pd.DataFrame,
+        earlier: str,
+        later: str,
+        *,
+        allow_equal: bool = True,
+        msg: str | None = None,
 ):
     """Assert earlier ≤ later (if both present)."""
     op = (df[earlier] > df[later]) if allow_equal else (df[earlier] >= df[later])
     bad = df[df[later].notna() & df[earlier].notna() & op]
     assert bad.empty, msg or f"{earlier}>{later} rows: {bad[[earlier, later]].head()}"
 
+
 # ------------------------------------------------------------------
 # Active / overlap helpers
 # ------------------------------------------------------------------
 
 def assert_single_active(
-    df: pd.DataFrame,
-    id_col: str,
-    *,
-    status_col: str | None = None,
-    active_code: int | str | None = None,
+        df: pd.DataFrame,
+        id_col: str,
+        *,
+        status_col: str | None = None,
+        active_code: int | str | None = None,
 ):
     """Ensure at most one active row per entity.
 
@@ -78,10 +81,10 @@ def assert_single_active(
 
 
 def assert_no_overlap(
-    df: pd.DataFrame,
-    id_col: str,
-    start_col: str,
-    end_col: str,
+        df: pd.DataFrame,
+        id_col: str,
+        start_col: str,
+        end_col: str,
 ):
     """Ensure no overlapping periods per entity."""
     for _id, grp in df.groupby(id_col):
@@ -93,6 +96,7 @@ def assert_no_overlap(
             if prev_end is not None and pd.notna(en) and prev_end > st:
                 pytest.fail(f"Overlap in {id_col}={_id}: {prev_end} > {st}")
             prev_end = en if pd.notna(en) else prev_end
+
 
 __all__ = [
     "assert_unique_not_null",

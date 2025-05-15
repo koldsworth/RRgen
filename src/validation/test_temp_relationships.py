@@ -8,13 +8,11 @@ sanity.
 
 from __future__ import annotations
 
-from datetime import datetime
-
 import pandas as pd
 import pytest
 
 from src.generation.temp_relationships import generate_temp_relatsionships
-from src.validation.helpers import assert_unique_not_null, assert_temporal_order
+from src.validation.helpers import assert_unique_not_null
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +52,7 @@ def test_pk_isid(temp_rel_df):
 def test_family_id_coherence(temp_rel_df):
     """
     Partners and their children must share the same family ID.
-    We first build a quick lookup dict so we don’t keep slicing the frame.
+    We first build a quick lookup dict, so we don’t keep slicing the frame.
     """
     fam_by_id = temp_rel_df.set_index("IsID")["Perekonna ID"].to_dict()
 

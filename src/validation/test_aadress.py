@@ -21,7 +21,7 @@ from src.generation.utils import get_kdid_for_name
 # Paths & constants
 # ---------------------------------------------------------------------
 OUTPUT = Path("output")
-DATA   = Path("data")
+DATA = Path("data")
 
 DATE_COLS_ADR = ["LoodiKpv", "MuudetiKpv", "KustutatiKpv"]
 DATE_COLS_AKP = [
@@ -31,6 +31,7 @@ DATE_COLS_AKP = [
     "MuudetiKpv",
     "KustutatiKpv",
 ]
+
 
 # ---------------------------------------------------------------------
 # Fixtures (module scope)
@@ -75,7 +76,7 @@ def test_aadress_zipcode_range(aadress_df):
         pytest.skip("AdrSihtnumber column missing")
 
     bad = aadress_df[(aadress_df["AdrSihtnumber"] < 10000) | (aadress_df["AdrSihtnumber"] > 99999)]
-    assert bad.empty, f"Out‑of‑range zipcodes:\n{bad[['AdrID','AdrSihtnumber']]}"
+    assert bad.empty, f"Out‑of‑range zipcodes:\n{bad[['AdrID', 'AdrSihtnumber']]}"
 
 
 def test_aadress_date_chain(aadress_df):
@@ -96,8 +97,8 @@ def test_aadress_kustutatud_on_kehtetu(aadress_df, kodifikaator_df, status_code,
     with_kust = aadress_df[aadress_df["KustutatiKpv"].notna()]
     problem = with_kust[with_kust["KdIDAdressiStaatus"] != kd_kehtetu]
     assert problem.empty, (
-        "Rows logically deleted must carry KEHTETU status, but found:"\
-        f"\n{problem[['AdrID','KdIDAdressiStaatus','KustutatiKpv']]}"
+        "Rows logically deleted must carry KEHTETU status, but found:"
+        f"\n{problem[['AdrID', 'KdIDAdressiStaatus', 'KustutatiKpv']]}"
     )
 
 
@@ -128,7 +129,7 @@ def test_aadresskomp_kehtiv_vs_kehtetu(aadress_komp_df, kodifikaator_df):
 
     closed = aadress_komp_df[aadress_komp_df["AKpKehtivKuniKpv"].notna()]
     bad = closed[closed["KdIDStaatus"] != kd_kehtetu]
-    assert bad.empty, f"Closed components must be KEHTETU, but:\n{bad[['AKpID','KdIDStaatus']]}"
+    assert bad.empty, f"Closed components must be KEHTETU, but:\n{bad[['AKpID', 'KdIDStaatus']]}"
 
 
 def test_aadresskomp_required_columns(aadress_komp_df):
